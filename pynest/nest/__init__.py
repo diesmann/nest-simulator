@@ -210,6 +210,14 @@ class NestModule(types.ModuleType):
         "Number of consecutive threads that form a group of the tree barrier (a core complex or socket)",
         default=8,
     )
+    collocation_groups = KernelAttribute(
+        "int",
+        (
+            "Number of groups of threads that collocate the spike registers in parallel; 1: the master thread "
+            "collocates alone. Can only be changed before the first call of Simulate"
+        ),
+        default=1,
+    )
     off_grid_spiking = KernelAttribute(
         "bool",
         "Whether to transmit precise spike times in MPI communication",
