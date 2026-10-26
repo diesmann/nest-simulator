@@ -200,6 +200,16 @@ class NestModule(types.ModuleType):
         "Whether spikes of hpc static synapses are added directly to the input buffers of supporting target models",
         default=False,
     )
+    tree_barrier = KernelAttribute(
+        "bool",
+        "Whether the threads synchronize in the update loop with a spinning tree barrier instead of OpenMP barriers",
+        default=False,
+    )
+    tree_barrier_fan_in = KernelAttribute(
+        "int",
+        "Number of consecutive threads that form a group of the tree barrier (a core complex or socket)",
+        default=8,
+    )
     off_grid_spiking = KernelAttribute(
         "bool",
         "Whether to transmit precise spike times in MPI communication",
