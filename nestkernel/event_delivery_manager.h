@@ -573,7 +573,8 @@ EventDeliveryManager::send_to_node( Event& e )
 inline const long*
 EventDeliveryManager::get_moduli_data() const
 {
-  return moduli_.data();
+  // entry d of the returned array is get_modulo( d ) (fixed tables with an offset, see moduli_)
+  return moduli_.data() + offsets_.moduli_offset;
 }
 
 inline bool
