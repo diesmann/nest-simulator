@@ -173,7 +173,7 @@ public:
    */
   long get_modulo( long d );
 
-  //! Data of the table of pre-computed modulos (see get_modulo()), valid until the next init_moduli().
+  //! Pointer p with p[ d ] == get_modulo( d ), valid until the clock advances (next update_moduli()).
   const long* get_moduli_data() const;
 
   //! Whether Connector::send() may deliver spikes directly into the input buffers of the targets.
