@@ -1177,7 +1177,7 @@ SimulationManager::update_()
 
 #endif
         }
-// end of master section, all threads have to synchronize at this point
+        // end of master section, all threads have to synchronize at this point
         if ( use_tree_barrier_ )
         {
           tree_barrier_.wait( tid );
