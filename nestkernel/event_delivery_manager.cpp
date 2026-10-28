@@ -46,7 +46,6 @@ namespace nest
 EventDeliveryManager::EventDeliveryManager()
   : off_grid_spiking_( false )
   , direct_spike_delivery_( false )
-  , direct_delivery_generation_( 0 )
   , collocation_groups_( 1 )
   , group_buffers_()
   , groups_collocated_( 0 )
