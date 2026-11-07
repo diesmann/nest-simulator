@@ -129,6 +129,15 @@ private:
   PerThreadBoolIndicator saved_entry_point_;
 
   /**
+   * Whether sources_ of a thread are in the order established by ConnectionManager::sort_connections().
+   *
+   * Connections created after the last update of the connection infrastructure are appended unsorted until the
+   * next update, at the start of a time slice; ConnectionManager::find_connection() falls back to a linear search
+   * then.
+   */
+  PerThreadBoolIndicator is_sorted_;
+
+  /**
    * Minimal number of sources that need to be deleted per synapse
    * type and thread before a reallocation of the respective vector
    * is performed. Balances number of reallocations and memory usage.
@@ -365,6 +374,7 @@ SourceTable::add_source( const size_t tid, const synindex syn_id, const size_t n
 {
   const Source src( node_id, is_primary );
   sources_[ tid ][ syn_id ].push_back( src );
+  is_sorted_.set_false( tid );
 }
 
 inline void

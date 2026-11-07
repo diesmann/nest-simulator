@@ -51,6 +51,7 @@ SourceTable::initialize()
   sources_.resize( num_threads );
   is_cleared_.initialize( num_threads, false );
   saved_entry_point_.initialize( num_threads, false );
+  is_sorted_.initialize( num_threads, true );
   current_positions_.resize( num_threads );
   saved_positions_.resize( num_threads );
   compressible_sources_.resize( num_threads );

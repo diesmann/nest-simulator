@@ -975,7 +975,8 @@ ConnectionManager::find_connection( const size_t tid,
   const size_t snode_id,
   const size_t tnode_id )
 {
-  if ( use_compressed_spikes_ )
+  // Binary search over the sources requires sorted sources, see SourceTable::is_sorted_
+  if ( use_compressed_spikes_ and source_table_.is_sorted_[ tid ].is_true() )
   {
     const size_t source_index = source_table_.find_first_source( tid, syn_id, snode_id );
     if ( source_index == invalid_index )
@@ -1446,6 +1447,7 @@ ConnectionManager::sort_connections( const size_t tid )
       }
     }
     remove_disabled_connections_( tid );
+    source_table_.is_sorted_.set_true( tid );
   }
 }
 
