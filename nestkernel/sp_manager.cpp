@@ -388,7 +388,9 @@ SPManager::update_structural_plasticity( SPBuilder* sp_builder )
     synapses_created = create_synapses(
       pre_vacant_id_global, pre_vacant_n_global, post_vacant_id_global, post_vacant_n_global, sp_builder );
   }
-  if ( synapses_created or post_deleted_id.size() > 0 or pre_deleted_id.size() > 0 )
+  // Global data only: update_() rebuilds the connection infrastructure, which involves MPI collectives, on the
+  // basis of this flag, so all ranks must set it alike.
+  if ( synapses_created or post_deleted_id_global.size() > 0 or pre_deleted_id_global.size() > 0 )
   {
     kernel().connection_manager.set_connections_have_changed();
   }
