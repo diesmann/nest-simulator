@@ -22,7 +22,9 @@
 #include "cm_tree.h"
 
 
-nest::Compartment::Compartment( const long compartment_index, const long parent_index )
+namespace nest
+{
+Compartment::Compartment( const long compartment_index, const long parent_index )
   : xx_( 0.0 )
   , yy_( 0.0 )
   , comp_index( compartment_index )
@@ -47,9 +49,7 @@ nest::Compartment::Compartment( const long compartment_index, const long parent_
   compartment_currents = CompartmentCurrents( v_comp );
 }
 
-nest::Compartment::Compartment( const long compartment_index,
-  const long parent_index,
-  const DictionaryDatum& compartment_params )
+Compartment::Compartment( const long compartment_index, const long parent_index, const Dictionary& compartment_params )
   : xx_( 0.0 )
   , yy_( 0.0 )
   , comp_index( compartment_index )
@@ -71,21 +71,21 @@ nest::Compartment::Compartment( const long compartment_index,
   , n_passed( 0 )
   , compartment_currents( v_comp )
 {
-  compartment_params->clear_access_flags();
+  compartment_params.init_access_flags();
 
-  updateValue< double >( compartment_params, names::C_m, ca );
-  updateValue< double >( compartment_params, names::g_C, gc );
-  updateValue< double >( compartment_params, names::g_L, gl );
-  updateValue< double >( compartment_params, names::e_L, el );
-  updateValue< double >( compartment_params, names::v_comp, v_comp );
+  compartment_params.update_value( names::C_m, ca );
+  compartment_params.update_value( names::g_C, gc );
+  compartment_params.update_value( names::g_L, gl );
+  compartment_params.update_value( names::e_L, el );
+  compartment_params.update_value( names::v_comp, v_comp );
 
   compartment_currents = CompartmentCurrents( v_comp, compartment_params );
 
-  ALL_ENTRIES_ACCESSED( *compartment_params, "compartment_params", "Unread dictionary entries: " );
+  compartment_params.all_entries_accessed( "compartment_params", "Unread dictionary entries: " );
 }
 
 void
-nest::Compartment::pre_run_hook()
+Compartment::pre_run_hook()
 {
   compartment_currents.pre_run_hook();
 
@@ -100,20 +100,20 @@ nest::Compartment::pre_run_hook()
   currents.clear();
 }
 
-std::map< Name, double* >
-nest::Compartment::get_recordables()
+std::map< std::string, double* >
+Compartment::get_recordables()
 {
-  std::map< Name, double* > recordables = compartment_currents.get_recordables( comp_index );
+  std::map< std::string, double* > recordables = compartment_currents.get_recordables( comp_index );
 
   recordables.insert( recordables.begin(), recordables.end() );
-  recordables[ Name( "v_comp" + std::to_string( comp_index ) ) ] = &v_comp;
+  recordables[ "v_comp" + std::to_string( comp_index ) ] = &v_comp;
 
   return recordables;
 }
 
 // for matrix construction
 void
-nest::Compartment::construct_matrix_element( const long lag )
+Compartment::construct_matrix_element( const long lag )
 {
   // matrix diagonal element
   gg = gg0;
@@ -153,7 +153,7 @@ nest::Compartment::construct_matrix_element( const long lag )
 }
 
 
-nest::CompTree::CompTree()
+CompTree::CompTree()
   : root_( -1, -1 )
   , size_( 0 )
 {
@@ -167,21 +167,21 @@ nest::CompTree::CompTree()
  * Assumes parent of compartment is already added
  */
 void
-nest::CompTree::add_compartment( const long parent_index )
+CompTree::add_compartment( const long parent_index )
 {
   Compartment* compartment = new Compartment( size_, parent_index );
   add_compartment( compartment, parent_index );
 }
 
 void
-nest::CompTree::add_compartment( const long parent_index, const DictionaryDatum& compartment_params )
+CompTree::add_compartment( const long parent_index, const Dictionary& compartment_params )
 {
   Compartment* compartment = new Compartment( size_, parent_index, compartment_params );
   add_compartment( compartment, parent_index );
 }
 
 void
-nest::CompTree::add_compartment( Compartment* compartment, const long parent_index )
+CompTree::add_compartment( Compartment* compartment, const long parent_index )
 {
   size_++;
 
@@ -226,14 +226,14 @@ nest::CompTree::add_compartment( Compartment* compartment, const long parent_ind
  * and also has the option to throw an error if no compartment corresponding to
  * `compartment_index` is found in the tree
  */
-nest::Compartment*
-nest::CompTree::get_compartment( const long compartment_index ) const
+Compartment*
+CompTree::get_compartment( const long compartment_index ) const
 {
   return get_compartment( compartment_index, get_root(), 1 );
 }
 
-nest::Compartment*
-nest::CompTree::get_compartment( const long compartment_index, Compartment* compartment, const long raise_flag ) const
+Compartment*
+CompTree::get_compartment( const long compartment_index, Compartment* compartment, const long raise_flag ) const
 {
   Compartment* r_compartment = nullptr;
 
@@ -266,8 +266,8 @@ nest::CompTree::get_compartment( const long compartment_index, Compartment* comp
  * function before CompTree::init_pointers() is called will result in a segmentation
  * fault
  */
-nest::Compartment*
-nest::CompTree::get_compartment_opt( const long compartment_idx ) const
+Compartment*
+CompTree::get_compartment_opt( const long compartment_idx ) const
 {
   return compartments_[ compartment_idx ];
 }
@@ -276,7 +276,7 @@ nest::CompTree::get_compartment_opt( const long compartment_idx ) const
  * Initialize all tree structure pointers
  */
 void
-nest::CompTree::init_pointers()
+CompTree::init_pointers()
 {
   set_parents();
   set_compartments();
@@ -287,10 +287,10 @@ nest::CompTree::init_pointers()
  * For each compartments, sets its pointer towards its parent compartment
  */
 void
-nest::CompTree::set_parents()
+CompTree::set_parents()
 {
   for ( auto compartment_idx_it = compartment_indices_.begin(); compartment_idx_it != compartment_indices_.end();
-        ++compartment_idx_it )
+    ++compartment_idx_it )
   {
     Compartment* comp_ptr = get_compartment( *compartment_idx_it );
     // will be nullptr if root
@@ -304,12 +304,12 @@ nest::CompTree::set_parents()
  * added by `add_compartment()`
  */
 void
-nest::CompTree::set_compartments()
+CompTree::set_compartments()
 {
   compartments_.clear();
 
   for ( auto compartment_idx_it = compartment_indices_.begin(); compartment_idx_it != compartment_indices_.end();
-        ++compartment_idx_it )
+    ++compartment_idx_it )
   {
     compartments_.push_back( get_compartment( *compartment_idx_it ) );
   }
@@ -319,7 +319,7 @@ nest::CompTree::set_compartments()
  * Creates a vector of compartment pointers of compartments that are also leafs of the tree.
  */
 void
-nest::CompTree::set_leafs()
+CompTree::set_leafs()
 {
   leafs_.clear();
   for ( auto compartment_it = compartments_.begin(); compartment_it != compartments_.end(); ++compartment_it )
@@ -335,7 +335,7 @@ nest::CompTree::set_leafs()
  * Initializes pointers for the spike buffers for all synapse receptors
  */
 void
-nest::CompTree::set_syn_buffers( std::vector< RingBuffer >& syn_buffers )
+CompTree::set_syn_buffers( std::vector< RingBuffer >& syn_buffers )
 {
   for ( auto compartment_it = compartments_.begin(); compartment_it != compartments_.end(); ++compartment_it )
   {
@@ -346,10 +346,10 @@ nest::CompTree::set_syn_buffers( std::vector< RingBuffer >& syn_buffers )
 /**
  * Returns a map of variable names and pointers to the recordables
  */
-std::map< Name, double* >
-nest::CompTree::get_recordables()
+std::map< std::string, double* >
+CompTree::get_recordables()
 {
-  std::map< Name, double* > recordables;
+  std::map< std::string, double* > recordables;
 
   /**
    * add recordables for all compartments, suffixed by compartment_idx,
@@ -357,7 +357,7 @@ nest::CompTree::get_recordables()
    */
   for ( auto compartment_it = compartments_.begin(); compartment_it != compartments_.end(); ++compartment_it )
   {
-    std::map< Name, double* > recordables_comp = ( *compartment_it )->get_recordables();
+    std::map< std::string, double* > recordables_comp = ( *compartment_it )->get_recordables();
     recordables.insert( recordables_comp.begin(), recordables_comp.end() );
   }
   return recordables;
@@ -367,7 +367,7 @@ nest::CompTree::get_recordables()
  * Initialize state variables
  */
 void
-nest::CompTree::pre_run_hook()
+CompTree::pre_run_hook()
 {
   if ( root_.comp_index < 0 )
   {
@@ -386,7 +386,7 @@ nest::CompTree::pre_run_hook()
  * Returns vector of voltage values, indices correspond to compartments in `compartments_`
  */
 std::vector< double >
-nest::CompTree::get_voltage() const
+CompTree::get_voltage() const
 {
   std::vector< double > v_comps;
   for ( auto compartment_it = compartments_.cbegin(); compartment_it != compartments_.cend(); ++compartment_it )
@@ -400,7 +400,7 @@ nest::CompTree::get_voltage() const
  * Return voltage of single compartment voltage, indicated by the compartment_index
  */
 double
-nest::CompTree::get_compartment_voltage( const long compartment_index )
+CompTree::get_compartment_voltage( const long compartment_index )
 {
   return compartments_[ compartment_index ]->v_comp;
 }
@@ -409,7 +409,7 @@ nest::CompTree::get_compartment_voltage( const long compartment_index )
  * Construct the matrix equation to be solved to advance the model one timestep
  */
 void
-nest::CompTree::construct_matrix( const long lag )
+CompTree::construct_matrix( const long lag )
 {
   for ( auto compartment_it = compartments_.begin(); compartment_it != compartments_.end(); ++compartment_it )
   {
@@ -421,7 +421,7 @@ nest::CompTree::construct_matrix( const long lag )
  * Solve matrix with O(n) algorithm
  */
 void
-nest::CompTree::solve_matrix()
+CompTree::solve_matrix()
 {
   std::vector< Compartment* >::iterator leaf_it = leafs_.begin();
 
@@ -433,7 +433,7 @@ nest::CompTree::solve_matrix()
 }
 
 void
-nest::CompTree::solve_matrix_downsweep( Compartment* compartment, std::vector< Compartment* >::iterator leaf_it )
+CompTree::solve_matrix_downsweep( Compartment* compartment, std::vector< Compartment* >::iterator leaf_it )
 {
   // compute the input output transformation at compartment
   std::pair< double, double > output = compartment->io();
@@ -465,7 +465,7 @@ nest::CompTree::solve_matrix_downsweep( Compartment* compartment, std::vector< C
 }
 
 void
-nest::CompTree::solve_matrix_upsweep( Compartment* compartment, double vv )
+CompTree::solve_matrix_upsweep( Compartment* compartment, double vv )
 {
   // compute compartment voltage
   vv = compartment->calc_v( vv );
@@ -480,7 +480,7 @@ nest::CompTree::solve_matrix_upsweep( Compartment* compartment, double vv )
  * Print the tree graph
  */
 void
-nest::CompTree::print_tree() const
+CompTree::print_tree() const
 {
   // loop over all compartments
   std::printf( ">>> CM tree with %d compartments <<<\n", int( compartments_.size() ) );
@@ -500,3 +500,5 @@ nest::CompTree::print_tree() const
   }
   std::cout << std::endl;
 }
+
+}  // namespace nest

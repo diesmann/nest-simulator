@@ -31,22 +31,12 @@ namespace nest
 class SpikeEvent;
 class CurrentEvent;
 
-/** @BeginDocumentation
-Name: proxynode - Proxy to provide Nodes on remote machines
-
-Description:
-
-Remarks:
-
-Parameters:
-
-References:
-
-Author: June 2005, Jochen Martin Eppler
-*/
-
 /**
- * Proxy Node to provide Nodes, where there aren't real Nodes to be
+ * @brief Proxy to provide Nodes on remote machines.
+ *
+ * Proxy Node to provide Nodes where there aren't real Nodes to be.
+ *
+ * @author June 2005, Jochen Martin Eppler
  */
 class proxynode : public Node
 {
@@ -106,7 +96,7 @@ public:
   {
   }
 
-  void get_status( DictionaryDatum& ) const override;
+  void get_status( Dictionary& ) const override;
 
   /**
    * Proxy nodes have no properties.
@@ -117,7 +107,7 @@ public:
    * problems with dictionary entry checking
    */
   void
-  set_status( const DictionaryDatum& ) override
+  set_status( const Dictionary& ) override
   {
     assert( false );
   }
@@ -149,6 +139,6 @@ proxynode::is_proxy() const
   return true;
 }
 
-} // namespace
+}  // namespace
 
 #endif /* #ifndef PROXYNODE_H */

@@ -27,6 +27,7 @@
 #include "model_manager_impl.h"
 #include "nest_impl.h"
 
+
 namespace nest
 {
 void
@@ -43,19 +44,19 @@ register_rate_transformer_sigmoid( const std::string& name )
 
 
 void
-nonlinearities_sigmoid_rate::get( DictionaryDatum& d ) const
+nonlinearities_sigmoid_rate::get( Dictionary& d ) const
 {
-  def< double >( d, names::g, g_ );
-  def< double >( d, names::beta, beta_ );
-  def< double >( d, names::theta, theta_ );
+  d[ names::g ] = g_;
+  d[ names::beta ] = beta_;
+  d[ names::theta ] = theta_;
 }
 
 void
-nonlinearities_sigmoid_rate::set( const DictionaryDatum& d, Node* node )
+nonlinearities_sigmoid_rate::set( const Dictionary& d, Node* node )
 {
-  updateValueParam< double >( d, names::g, g_, node );
-  updateValueParam< double >( d, names::beta, beta_, node );
-  updateValueParam< double >( d, names::theta, theta_, node );
+  update_value_param( d, names::g, g_, node );
+  update_value_param( d, names::beta, beta_, node );
+  update_value_param( d, names::theta, theta_, node );
 }
 
 /*
@@ -64,19 +65,19 @@ nonlinearities_sigmoid_rate::set( const DictionaryDatum& d, Node* node )
  */
 template <>
 void
-RecordablesMap< nest::sigmoid_rate_ipn >::create()
+RecordablesMap< sigmoid_rate_ipn >::create()
 {
   // use standard names wherever you can for consistency!
-  insert_( names::rate, &nest::sigmoid_rate_ipn::get_rate_ );
-  insert_( names::noise, &nest::sigmoid_rate_ipn::get_noise_ );
+  insert_( names::rate, &sigmoid_rate_ipn::get_rate_ );
+  insert_( names::noise, &sigmoid_rate_ipn::get_noise_ );
 }
 
 template <>
 void
-RecordablesMap< nest::rate_transformer_sigmoid >::create()
+RecordablesMap< rate_transformer_sigmoid >::create()
 {
   // use standard names wherever you can for consistency!
-  insert_( names::rate, &nest::rate_transformer_sigmoid::get_rate_ );
+  insert_( names::rate, &rate_transformer_sigmoid::get_rate_ );
 }
 
-} // namespace nest
+}  // namespace nest

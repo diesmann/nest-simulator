@@ -33,8 +33,6 @@
 #include "nest_types.h"
 #include "synaptic_element.h"
 
-// Includes from sli:
-#include "dictdatum.h"
 
 namespace nest
 {
@@ -100,13 +98,13 @@ protected:
    *
    * The implementation of the delay of the convolved membrane potentials as used
    * here is not described in Clopath et al. 2010, but is present in the code
-   * on ModelDB (https://senselab.med.yale.edu/ModelDB/showmodel.cshtml?model=144566)
+   * on ModelDB (https://modeldb.science/144566)
    * which was presumably used to create the figures in the paper. Since we write
    * into the buffer before we read from it, we have to add 1 to the size of the buffers.
    */
   void init_clopath_buffers();
-  void get_status( DictionaryDatum& d ) const override;
-  void set_status( const DictionaryDatum& d ) override;
+  void get_status( Dictionary& d ) const override;
+  void set_status( const Dictionary& d ) override;
 
 private:
   std::vector< histentry_extended > ltd_history_;
@@ -147,5 +145,5 @@ ClopathArchivingNode::get_theta_minus() const
   return theta_minus_;
 }
 
-} // of namespace
+}  // of namespace
 #endif

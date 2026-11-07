@@ -54,7 +54,7 @@ public:
   /**
    * Register a new node to a specific channel on this port.
    */
-  void register_channel( int channel, nest::Node* mp );
+  void register_channel( int channel, Node* mp );
 
   /**
    * Publish the MUSIC port.
@@ -71,18 +71,18 @@ public:
   void update( Time const&, const long, const long );
 
 private:
-  MUSIC::ContInputPort* MP_;   //!< The MUSIC rate port for input of data
-  std::vector< double > data_; //!< The buffer for incoming data
+  MUSIC::ContInputPort* MP_;    //!< The MUSIC rate port for input of data
+  std::vector< double > data_;  //!< The buffer for incoming data
 
   bool published_;
   std::string port_name_;
 
-  int port_width_; //!< the width of the MUSIC port
+  int port_width_;  //!< the width of the MUSIC port
   //! Maps channel number to music_rate_in_proxy
-  std::vector< nest::Node* > channelmap_;
+  std::vector< Node* > channelmap_;
 };
 
-} // namespace nest
+}  // namespace nest
 
 #endif /* #ifdef HAVE_MUSIC */
 

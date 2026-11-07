@@ -28,6 +28,7 @@
 #include "nest_impl.h"
 #include "universal_data_logger_impl.h"
 
+
 namespace nest
 {
 void
@@ -38,15 +39,15 @@ register_mcculloch_pitts_neuron( const std::string& name )
 
 
 void
-gainfunction_mcculloch_pitts::get( DictionaryDatum& d ) const
+gainfunction_mcculloch_pitts::get( Dictionary& d ) const
 {
-  def< double >( d, names::theta, theta_ );
+  d[ names::theta ] = theta_;
 }
 
 void
-gainfunction_mcculloch_pitts::set( const DictionaryDatum& d, Node* node )
+gainfunction_mcculloch_pitts::set( const Dictionary& d, Node* node )
 {
-  updateValueParam< double >( d, names::theta, theta_, node );
+  update_value_param( d, names::theta, theta_, node );
 }
 
 /*
@@ -55,11 +56,11 @@ gainfunction_mcculloch_pitts::set( const DictionaryDatum& d, Node* node )
  */
 template <>
 void
-RecordablesMap< nest::mcculloch_pitts_neuron >::create()
+RecordablesMap< mcculloch_pitts_neuron >::create()
 {
   // use standard names wherever you can for consistency!
-  insert_( names::S, &nest::mcculloch_pitts_neuron::get_output_state__ );
-  insert_( names::h, &nest::mcculloch_pitts_neuron::get_input__ );
+  insert_( names::S, &mcculloch_pitts_neuron::get_output_state__ );
+  insert_( names::h, &mcculloch_pitts_neuron::get_input__ );
 }
 
-} // namespace nest
+}  // namespace nest

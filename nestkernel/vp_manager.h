@@ -29,8 +29,6 @@
 // Includes from nestkernel:
 #include "nest_types.h"
 
-// Includes from sli:
-#include "dictdatum.h"
 
 #ifdef _OPENMP
 // C includes:
@@ -59,8 +57,8 @@ public:
   void initialize( const bool ) override;
   void finalize( const bool ) override;
 
-  void set_status( const DictionaryDatum& ) override;
-  void get_status( DictionaryDatum& ) override;
+  virtual void set_status( const Dictionary& ) override;
+  virtual void get_status( Dictionary& ) override;
 
   /**
    * Gets ID of local thread.
@@ -171,12 +169,11 @@ public:
 
 private:
   const bool force_singlethreading_;
-  size_t n_threads_; //!< Number of threads per process.
+  size_t n_threads_;  //!< Number of threads per process.
 };
-}
 
 inline size_t
-nest::VPManager::get_thread_id() const
+VPManager::get_thread_id() const
 {
 #ifdef _OPENMP
   return omp_get_thread_num();
@@ -186,13 +183,13 @@ nest::VPManager::get_thread_id() const
 }
 
 inline size_t
-nest::VPManager::get_num_threads() const
+VPManager::get_num_threads() const
 {
   return n_threads_;
 }
 
 inline void
-nest::VPManager::assert_single_threaded() const
+VPManager::assert_single_threaded() const
 {
 #ifdef _OPENMP
   assert( omp_get_num_threads() == 1 );
@@ -200,7 +197,7 @@ nest::VPManager::assert_single_threaded() const
 }
 
 inline void
-nest::VPManager::assert_thread_parallel() const
+VPManager::assert_thread_parallel() const
 {
 #ifdef _OPENMP
   // omp_get_num_threads() returns int
@@ -208,5 +205,6 @@ nest::VPManager::assert_thread_parallel() const
 #endif
 }
 
+}  // namespace nest
 
 #endif /* #ifndef VP_MANAGER_H */

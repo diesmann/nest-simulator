@@ -28,14 +28,9 @@
 #include <string>
 #include <vector>
 
-// Includes from libnestutil:
-#include "allocator.h"
-
 // Includes from nestkernel:
 #include "node.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
 namespace nest
 {
@@ -131,6 +126,7 @@ public:
   size_t mem_capacity();
 
   virtual bool has_proxies() = 0;
+  virtual bool local_receiver() = 0;
   virtual bool one_node_per_process() = 0;
   virtual bool is_off_grid() = 0;
   virtual void calibrate_time( const TimeConverter& tc ) = 0;
@@ -142,7 +138,7 @@ public:
    * @param d Dictionary with named parameter settings.
    * @ingroup status_interface
    */
-  void set_status( DictionaryDatum );
+  void set_status( const Dictionary& );
 
   /**
    * Export properties of the prototype node by setting
@@ -151,7 +147,7 @@ public:
    * @param d Dictionary.
    * @ingroup status_interface
    */
-  DictionaryDatum get_status();
+  Dictionary get_status();
 
   virtual size_t send_test_event( Node&, size_t, synindex, bool ) = 0;
 
@@ -214,9 +210,9 @@ public:
   }
 
 private:
-  virtual void set_status_( DictionaryDatum ) = 0;
+  virtual void set_status_( const Dictionary& ) = 0;
 
-  virtual DictionaryDatum get_status_() = 0;
+  virtual Dictionary get_status_() = 0;
 
 
   /**

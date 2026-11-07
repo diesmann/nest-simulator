@@ -4,7 +4,7 @@ User install instructions
 =========================
 
 Cross-platform options
------------------------
+----------------------
 
 
 Docker |linux| |macos| |windows|
@@ -18,13 +18,6 @@ conda-forge install |linux| |macos|
 
 You can install NEST with the :ref:`Conda forge package <conda_forge_install>`.
 
-
-Live media |linux| |macos| |windows|
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-We have live media (.ova) if you want to run NEST in a virtual machine.
-
-:ref:`Download the live media here <download_livemedia>`, and follow the :doc:`instructions to set up the virtual machine <livemedia>` .
 
 
 -------------
@@ -59,14 +52,7 @@ Or install NEST with `NESTML <https://nestml.readthedocs.io/en/latest/index.html
     sudo apt install nest python3-nestml
     python3 -m pip install --upgrade odetoolbox pygsl antlr4-python3-runtime==4.10
 
-3. Set the environment
-
-.. code-block:: bash
-
-    source /usr/bin/nest_vars.sh
-
 --------
-
 
 .. _macos_install:
 
@@ -86,7 +72,7 @@ macOS |macos|
 .. _windows_install:
 
 Options for Windows users |windows|
-------------------------------------
+-----------------------------------
 
 Please note that NEST does not officially support Windows. Members of our community have had success
 using NEST on Windows with the `Windows Subsystem for Linux <https://ubuntu.com/tutorials/install-ubuntu-on-wsl2-on-windows-11-with-gui-support>`_.

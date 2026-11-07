@@ -36,23 +36,20 @@
 #include "model_manager_impl.h"
 #include "nest_impl.h"
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dict.h"
-#include "dictutils.h"
 
+namespace nest
+{
 void
-nest::register_correlospinmatrix_detector( const std::string& name )
+register_correlospinmatrix_detector( const std::string& name )
 {
   register_node_model< correlospinmatrix_detector >( name );
 }
-
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::correlospinmatrix_detector::Parameters_::Parameters_()
+correlospinmatrix_detector::Parameters_::Parameters_()
   : delta_tau_( get_default_delta_tau() )
   , tau_max_( 10 * delta_tau_ )
   , Tstart_( Time::ms( 0.0 ) )
@@ -61,7 +58,7 @@ nest::correlospinmatrix_detector::Parameters_::Parameters_()
 {
 }
 
-nest::correlospinmatrix_detector::Parameters_::Parameters_( const Parameters_& p )
+correlospinmatrix_detector::Parameters_::Parameters_( const Parameters_& p )
   : delta_tau_( p.delta_tau_ )
   , tau_max_( p.tau_max_ )
   , Tstart_( p.Tstart_ )
@@ -83,8 +80,8 @@ nest::correlospinmatrix_detector::Parameters_::Parameters_( const Parameters_& p
 }
 
 
-nest::correlospinmatrix_detector::Parameters_&
-nest::correlospinmatrix_detector::Parameters_::operator=( const Parameters_& p )
+correlospinmatrix_detector::Parameters_&
+correlospinmatrix_detector::Parameters_::operator=( const Parameters_& p )
 {
   delta_tau_ = p.delta_tau_;
   tau_max_ = p.tau_max_;
@@ -101,7 +98,7 @@ nest::correlospinmatrix_detector::Parameters_::operator=( const Parameters_& p )
 }
 
 
-nest::correlospinmatrix_detector::State_::State_()
+correlospinmatrix_detector::State_::State_()
   : incoming_()
   , last_i_( 0 )
   , t_last_in_spike_( Time::neg_inf() )
@@ -115,41 +112,29 @@ nest::correlospinmatrix_detector::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-nest::correlospinmatrix_detector::Parameters_::get( DictionaryDatum& d ) const
+correlospinmatrix_detector::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::delta_tau ] = delta_tau_.get_ms();
-  ( *d )[ names::tau_max ] = tau_max_.get_ms();
-  ( *d )[ names::Tstart ] = Tstart_.get_ms();
-  ( *d )[ names::Tstop ] = Tstop_.get_ms();
-  ( *d )[ names::N_channels ] = N_channels_;
+  d[ names::delta_tau ] = delta_tau_.get_ms();
+  d[ names::tau_max ] = tau_max_.get_ms();
+  d[ names::Tstart ] = Tstart_.get_ms();
+  d[ names::Tstop ] = Tstop_.get_ms();
+  d[ names::N_channels ] = static_cast< long >( N_channels_ );
 }
 
 void
-nest::correlospinmatrix_detector::State_::get( DictionaryDatum& d ) const
+correlospinmatrix_detector::State_::get( Dictionary& d ) const
 {
-  ArrayDatum* CountC = new ArrayDatum;
-  for ( size_t i = 0; i < count_covariance_.size(); ++i )
-  {
-    ArrayDatum* CountC_i = new ArrayDatum;
-    for ( size_t j = 0; j < count_covariance_[ i ].size(); ++j )
-    {
-      CountC_i->push_back( new IntVectorDatum( new std::vector< long >( count_covariance_[ i ][ j ] ) ) );
-    }
-    CountC->push_back( *CountC_i );
-  }
-  ( *d )[ names::count_covariance ] = CountC;
+  d[ names::count_covariance ] = count_covariance_;
 }
 
 bool
-nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
-  const correlospinmatrix_detector& n,
-  Node* node )
+correlospinmatrix_detector::Parameters_::set( const Dictionary& d, const correlospinmatrix_detector& n, Node* node )
 {
   bool reset = false;
   double t;
   long N;
 
-  if ( updateValueParam< long >( d, names::N_channels, N, node ) )
+  if ( update_value_param( d, names::N_channels, N, node ) )
   {
     if ( N < 1 )
     {
@@ -162,7 +147,7 @@ nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
     }
   }
 
-  if ( updateValueParam< double >( d, names::delta_tau, t, node ) )
+  if ( update_value_param( d, names::delta_tau, t, node ) )
   {
     delta_tau_ = Time::ms( t );
     reset = true;
@@ -172,7 +157,7 @@ nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
     }
   }
 
-  if ( updateValueParam< double >( d, names::tau_max, t, node ) )
+  if ( update_value_param( d, names::tau_max, t, node ) )
   {
     tau_max_ = Time::ms( t );
     reset = true;
@@ -182,7 +167,7 @@ nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
     }
   }
 
-  if ( updateValueParam< double >( d, names::Tstart, t, node ) )
+  if ( update_value_param( d, names::Tstart, t, node ) )
   {
     Tstart_ = Time::ms( t );
     reset = true;
@@ -192,7 +177,7 @@ nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
     }
   }
 
-  if ( updateValueParam< double >( d, names::Tstop, t, node ) )
+  if ( update_value_param( d, names::Tstop, t, node ) )
   {
     Tstop_ = Time::ms( t );
     reset = true;
@@ -215,12 +200,12 @@ nest::correlospinmatrix_detector::Parameters_::set( const DictionaryDatum& d,
 }
 
 void
-nest::correlospinmatrix_detector::State_::set( const DictionaryDatum&, const Parameters_&, bool, Node* )
+correlospinmatrix_detector::State_::set( const Dictionary&, const Parameters_&, bool, Node* )
 {
 }
 
 void
-nest::correlospinmatrix_detector::State_::reset( const Parameters_& p )
+correlospinmatrix_detector::State_::reset( const Parameters_& p )
 {
   last_i_ = 0;
   tentative_down_ = false;
@@ -253,7 +238,7 @@ nest::correlospinmatrix_detector::State_::reset( const Parameters_& p )
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::correlospinmatrix_detector::correlospinmatrix_detector()
+correlospinmatrix_detector::correlospinmatrix_detector()
   : Node()
   , device_()
   , P_()
@@ -261,7 +246,7 @@ nest::correlospinmatrix_detector::correlospinmatrix_detector()
 {
 }
 
-nest::correlospinmatrix_detector::correlospinmatrix_detector( const correlospinmatrix_detector& n )
+correlospinmatrix_detector::correlospinmatrix_detector( const correlospinmatrix_detector& n )
   : Node( n )
   , device_( n.device_ )
   , P_( n.P_ )
@@ -275,20 +260,20 @@ nest::correlospinmatrix_detector::correlospinmatrix_detector( const correlospinm
  * ---------------------------------------------------------------- */
 
 void
-nest::correlospinmatrix_detector::init_state_()
+correlospinmatrix_detector::init_state_()
 {
   device_.init_state();
 }
 
 void
-nest::correlospinmatrix_detector::init_buffers_()
+correlospinmatrix_detector::init_buffers_()
 {
   device_.init_buffers();
   S_.reset( P_ );
 }
 
 void
-nest::correlospinmatrix_detector::pre_run_hook()
+correlospinmatrix_detector::pre_run_hook()
 {
   device_.pre_run_hook();
 }
@@ -299,12 +284,12 @@ nest::correlospinmatrix_detector::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::correlospinmatrix_detector::update( Time const&, const long, const long )
+correlospinmatrix_detector::update( Time const&, const long, const long )
 {
 }
 
 void
-nest::correlospinmatrix_detector::handle( SpikeEvent& e )
+correlospinmatrix_detector::handle( SpikeEvent& e )
 {
   // The receiver port identifies the sending node in our
   // sender list.
@@ -333,7 +318,7 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
     bool down_transition = false;
 
     if ( m == 1 )
-    { // multiplicity == 1, either a single 1->0 event or the first or second of
+    {  // multiplicity == 1, either a single 1->0 event or the first or second of
       // a pair of 0->1
       // events
       if ( curr_i == S_.last_i_ and stamp == S_.t_last_in_spike_ )
@@ -342,7 +327,7 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
         // revise the last event written to the buffer
         S_.curr_state_[ curr_i ] = true;
         S_.last_change_[ curr_i ] = stamp.get_steps();
-        S_.tentative_down_ = false; // previous event was first event of two, so no down transition
+        S_.tentative_down_ = false;  // previous event was first event of two, so no down transition
       }
       else
       {
@@ -350,8 +335,8 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
         // transition 1->0
         // assume it will stay alone, so meaning a down transition
 
-        if ( S_.tentative_down_ ) // really was a down transition, because we
-                                  // now have another event
+        if ( S_.tentative_down_ )  // really was a down transition, because we
+                                   // now have another event
         {
           down_transition = true;
         }
@@ -359,13 +344,13 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
         S_.tentative_down_ = true;
       }
     }
-    else // multiplicity != 1
+    else  // multiplicity != 1
       if ( m == 2 )
       {
         S_.curr_state_[ curr_i ] = true;
 
-        if ( S_.tentative_down_ ) // really was a down transition, because we now
-                                  // have another double event
+        if ( S_.tentative_down_ )  // really was a down transition, because we now
+                                   // have another double event
         {
           down_transition = true;
         }
@@ -376,9 +361,9 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
         S_.tentative_down_ = false;
       }
 
-    if ( down_transition ) // only do something on the downtransitions
+    if ( down_transition )  // only do something on the downtransitions
     {
-      long i = S_.last_i_; // index of neuron making the down transition
+      long i = S_.last_i_;  // index of neuron making the down transition
       // last time point of change, must have been on
       long t_i_on = S_.last_change_[ i ];
 
@@ -392,7 +377,7 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
       // yet every impulse in the queue that is further in the past than
       // this minimum - tau_max cannot contribute to the count covariance
       long t_min_on = t_i_on;
-      for ( int n = 0; n < P_.N_channels_; n++ )
+      for ( size_t n = 0; n < P_.N_channels_; n++ )
       {
         if ( S_.curr_state_[ n ] )
         {
@@ -476,19 +461,19 @@ nest::correlospinmatrix_detector::handle( SpikeEvent& e )
             }
           }
         }
-      } // loop over history
+      }  // loop over history
 
       S_.last_change_[ i ] = t_i_off;
-    } // down transition happened
+    }  // down transition happened
 
     S_.last_i_ = curr_i;
     S_.t_last_in_spike_ = stamp;
 
-  } // device active
+  }  // device active
 }
 
 void
-nest::correlospinmatrix_detector::calibrate_time( const TimeConverter& tc )
+correlospinmatrix_detector::calibrate_time( const TimeConverter& tc )
 {
   if ( P_.delta_tau_.is_step() )
   {
@@ -499,7 +484,7 @@ nest::correlospinmatrix_detector::calibrate_time( const TimeConverter& tc )
     const double old = P_.delta_tau_.get_ms();
     P_.delta_tau_ = P_.get_default_delta_tau();
     std::string msg = String::compose( "Default for delta_tau changed from %1 to %2 ms", old, P_.delta_tau_.get_ms() );
-    LOG( M_INFO, get_name(), msg );
+    LOG( VerbosityLevel::INFO, get_name(), msg );
   }
 
   P_.tau_max_ = tc.from_old_tics( P_.tau_max_.get_tics() );
@@ -508,3 +493,5 @@ nest::correlospinmatrix_detector::calibrate_time( const TimeConverter& tc )
 
   S_.t_last_in_spike_ = tc.from_old_tics( S_.t_last_in_spike_.get_tics() );
 }
+
+}  // namespace nest

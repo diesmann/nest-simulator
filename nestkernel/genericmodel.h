@@ -58,6 +58,7 @@ public:
   Model* clone( const std::string& ) const override;
 
   bool has_proxies() override;
+  bool local_receiver() override;
   bool one_node_per_process() override;
   bool is_off_grid() override;
   void calibrate_time( const TimeConverter& tc ) override;
@@ -94,8 +95,8 @@ public:
   void deprecation_warning( const std::string& ) override;
 
 private:
-  void set_status_( DictionaryDatum ) override;
-  DictionaryDatum get_status_() override;
+  void set_status_( const Dictionary& ) override;
+  Dictionary get_status_() override;
 
   size_t get_element_size() const override;
 
@@ -159,6 +160,13 @@ inline bool
 GenericModel< ElementT >::has_proxies()
 {
   return proto_.has_proxies();
+}
+
+template < typename ElementT >
+inline bool
+GenericModel< ElementT >::local_receiver()
+{
+  return proto_.local_receiver();
 }
 
 template < typename ElementT >
@@ -232,7 +240,7 @@ GenericModel< ElementT >::sends_secondary_event( SICEvent& sic )
 }
 
 template < typename ElementT >
-inline nest::SignalType
+inline SignalType
 GenericModel< ElementT >::sends_signal() const
 {
   return proto_.sends_signal();
@@ -240,17 +248,17 @@ GenericModel< ElementT >::sends_signal() const
 
 template < typename ElementT >
 void
-GenericModel< ElementT >::set_status_( DictionaryDatum d )
+GenericModel< ElementT >::set_status_( const Dictionary& d )
 {
   proto_.set_status( d );
 }
 
 template < typename ElementT >
-DictionaryDatum
+Dictionary
 GenericModel< ElementT >::get_status_()
 {
-  DictionaryDatum d = proto_.get_status_base();
-  ( *d )[ names::elementsize ] = sizeof( ElementT );
+  Dictionary d = proto_.get_status_base();
+  d[ names::elementsize ] = static_cast< long >( sizeof( ElementT ) );
   return d;
 }
 

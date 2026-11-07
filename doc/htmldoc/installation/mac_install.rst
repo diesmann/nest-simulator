@@ -4,14 +4,14 @@ Building NEST on macOS
 ======================
 
 Building NEST on macOS requires some developer tools. There are several sources from
-which you can install them, e.g., conda-forge, Homebrew, or MacPorts. The most important
+which you can install them, e.g., conda-forge or Homebrew. The most important
 recommendation for an easy and stable build is *not to mix tools from different sources*.
 This includes your Python installation: Taking Python from conda-forge and all else from Homebrew
 may work, but can also lead to various complications.
 
 This guide shows how to build NEST with a development environment created with mamba. The main
 advantage of mamba is that you can fully insulate the entire environment in a mamba environment.
-If you want to base your setup on Homebrew or MacPorts, you can still use the
+If you want to base your setup on Homebrew, you can still use the
 ``environment.yml`` file as a guide to necessary packages.
 
 Preparations
@@ -110,11 +110,13 @@ By default NEST will be installed into the active virtual Python environment. If
 install it elsewhere, you can specify an install prefix. Follow the above instructions, but
 use ``cmake -DCMAKE_INSTALL_PREFIX:PATH=<nest_install_dir> <nest_source_dir>`` instead. Note
 that when NEST is installed in a non-standard location, automatic discovery of the Python
-module is impossible, and environment variables must be set before NEST can be used:
+module is impossible, and environment variables must be set before NEST can be
+used. Find the corresponding path inside your installation and set it similar
+to the following line:
 
 .. code-block:: sh
 
-   source <nest_install_dir>/bin/nest_vars.sh
+   export PYTHONPATH="<nest_install_dir>/lib/python..../site-packages"
 
 Troubleshooting
 ---------------

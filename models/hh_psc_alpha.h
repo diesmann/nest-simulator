@@ -57,6 +57,8 @@ namespace nest
  */
 extern "C" int hh_psc_alpha_dynamics( double, const double*, double*, void* );
 
+// Disable clang-formatting for documentation due to over-wide tables.
+// clang-format off
 /* BeginUserDocs: neuron, Hodgkin-Huxley, current-based, soft threshold
 
 Short description
@@ -68,46 +70,131 @@ Description
 +++++++++++
 
 ``hh_psc_alpha`` is an implementation of a spiking neuron using the Hodgkin-Huxley
-formalism.
+formalism :footcite:p:`Hodgkin1952`, with
 
-1. Postsynaptic currents
-Incoming spike events induce a postsynaptic change of current modelled
-by an alpha function. The alpha function is normalized such that an event of
-weight 1.0 results in a peak current of 1 pA.
+* membrane dynamics governed by sodium, potassium, and leak currents,
+* :math:`\alpha`-shaped synaptic input currents,
+* spike detection by a combined threshold-and-local-maximum search.
 
+The Hodgkin-Huxley formalism is also described in standard textbooks
+:footcite:p:`Gerstner2002`, :footcite:p:`Dayan2001`.
 
-2. Spike Detection
-Spike detection is done by a combined threshold-and-local-maximum search: if
-there is a local maximum above a certain threshold of the membrane potential,
-it is considered a spike.
+Membrane potential and channel dynamics
+.......................................
 
-See also [1]_, [2]_, [3]_.
+The membrane potential evolves according to
+
+.. math::
+
+   C_{\text{m}} \frac{dV_\text{m}}{dt} = -(I_{\text{Na}} + I_{\text{K}} + I_{\text{L}}) + I_{\text{syn}} + I_\text{e}
+
+with the voltage-gated sodium current, the delayed-rectifier potassium current, and the
+leak current
+
+.. math::
+
+   I_{\text{Na}} &= g_{\text{Na}} \, m^3 h \, (V_\text{m} - E_{\text{Na}}) \\
+   I_{\text{K}}  &= g_{\text{K}} \, n^4 \, (V_\text{m} - E_{\text{K}}) \\
+   I_{\text{L}}  &= g_{\text{L}} \, (V_\text{m} - E_{\text{L}}) \;.
+
+The gating variables :math:`m`, :math:`h`, and :math:`n` follow
+
+.. math::
+
+   \frac{dx}{dt} = \alpha_x(V_\text{m}) (1 - x) - \beta_x(V_\text{m}) \, x, \quad x \in \{m, h, n\} \;,
+
+with voltage-dependent rates (:math:`V_\text{m}` in mV)
+
+.. math::
+
+   \alpha_m &= \frac{0.1 (V_\text{m} + 40)}{1 - e^{-(V_\text{m} + 40)/10}} \\
+   \beta_m  &= 4 \, e^{-(V_\text{m} + 65)/18} \\
+   \alpha_h &= 0.07 \, e^{-(V_\text{m} + 65)/20} \\
+   \beta_h  &= \frac{1}{1 + e^{-(V_\text{m} + 35)/10}} \\
+   \alpha_n &= \frac{0.01 (V_\text{m} + 55)}{1 - e^{-(V_\text{m} + 55)/10}} \\
+   \beta_n  &= 0.125 \, e^{-(V_\text{m} + 65)/80} \;.
+
+Spike detection is done by a combined threshold-and-local-maximum search: if there is a
+local maximum of the membrane potential above a certain threshold, it is considered a spike.
+
+Synaptic input
+..............
+
+The total synaptic input current :math:`I_{\text{syn}}` entering the voltage equation above has an
+excitatory and an inhibitory component,
+
+.. math::
+
+   I_{\text{syn}}(t) = I_{\text{syn, ex}}(t) + I_{\text{syn, in}}(t) \;.
+
+Each incoming spike evokes an :math:`\alpha`-shaped post-synaptic current
+
+.. math::
+
+   i_{\text{syn, X}}(t) = \frac{e}{\tau_{\text{syn, X}}} t e^{-\frac{t}{\tau_{\text{syn, X}}}} \Theta(t) \;,
+
+for :math:`\text{X} \in \{\text{ex}, \text{in}\}`, with :math:`\Theta(x)` the Heaviside step function. The
+currents are normalized such that an event of weight 1.0 evokes a peak current of 1 pA at
+:math:`t = \tau_{\text{syn, X}}`.
+
+Each channel current is the sum of these single-spike responses over
+all presynaptic neurons :math:`j` and their spike times :math:`t_j^k`, weighted by the synaptic weights
+:math:`w_j` and :math:`d_j` is the delay from neuron :math:`j`:
+
+.. math::
+
+   I_{\text{syn, X}}(t) = \sum_j w_j \sum_k i_{\text{syn, X}}(t - t_j^k-d_j) \;.
+
+Excitatory and inhibitory inputs are distinguished by the sign of the synaptic weight.
 
 For details on asynchronicity in spike and firing events with Hodgkin Huxley models
 see :ref:`here <hh_details>`.
+
+.. note::
+
+   Incoming spikes are routed to the excitatory or inhibitory synapse by the **sign of the
+   connection weight**. A positive weight targets the excitatory synapse, a negative weight
+   the inhibitory one, and also sets the direction of the post-synaptic current.
+   Spike connections must use the default ``receptor_type`` of 0.
+
+   See :ref:`synapse_selection` for the conventions used by other models.
 
 Parameters
 ++++++++++
 
 The following parameters can be set in the status dictionary.
 
-========  ======  ============================================================
-V_m       mV      Membrane potential
-E_L       mV      Leak reversal potential
-C_m       pF      Capacity of the membrane
-t_ref     ms      Duration of refractory period
-g_L       nS      Leak conductance
-tau_ex    ms      Rise time of the excitatory synaptic alpha function
-tau_in    ms      Rise time of the inhibitory synaptic alpha function
-E_Na      mV      Sodium reversal potential
-g_Na      nS      Sodium peak conductance
-E_K       mV      Potassium reversal potential
-g_K       nS      Potassium peak conductance
-Act_m     real    Activation variable m
-Inact_h   real    Inactivation variable h
-Act_n     real    Activation variable n
-I_e       pA      External input current
-========  ======  ============================================================
+============== =========== ============================= ===================================================
+**Parameter**  **Default** **Math equivalent**           **Description**
+============== =========== ============================= ===================================================
+``E_L``        -54.402 mV  :math:`E_\text{L}`            Leak reversal potential
+``C_m``        100 pF      :math:`C_{\text{m}}`          Capacity of the membrane
+``t_ref``      2 ms        :math:`t_{\text{ref}}`        Duration of refractory period
+``g_L``        30 nS       :math:`g_\text{L}`            Leak conductance
+``E_Na``       50 mV       :math:`E_{\text{Na}}`         Sodium reversal potential
+``g_Na``       12000 nS    :math:`g_{\text{Na}}`         Sodium peak conductance
+``E_K``        -77 mV      :math:`E_{\text{K}}`          Potassium reversal potential
+``g_K``        3600 nS     :math:`g_{\text{K}}`          Potassium peak conductance
+``tau_syn_ex`` 0.2 ms      :math:`\tau_{\text{syn, ex}}` Rise time of the excitatory input current
+``tau_syn_in`` 2.0 ms      :math:`\tau_{\text{syn, in}}` Rise time of the inhibitory input current
+``I_e``        0 pA        :math:`I_\text{e}`            Constant input current
+============== =========== ============================= ===================================================
+
+The following state variables evolve during simulation and are available either as neuron properties or as recordables.
+
+================== =========================== ========================== =================================
+**State variable** **Initial value**           **Math equivalent**        **Description**
+================== =========================== ========================== =================================
+``V_m``            -65 mV                      :math:`V_{\text{m}}`       Membrane potential
+``Act_m``          :math:`m_\infty` [#steady]_ :math:`m`                  Sodium activation variable
+``Inact_h``        :math:`h_\infty` [#steady]_ :math:`h`                  Sodium inactivation variable
+``Act_n``          :math:`n_\infty` [#steady]_ :math:`n`                  Potassium activation variable
+``I_syn_ex``       0 pA                        :math:`I_{\text{syn, ex}}` Excitatory synaptic input current
+``I_syn_in``       0 pA                        :math:`I_{\text{syn, in}}` Inhibitory synaptic input current
+================== =========================== ========================== =================================
+
+.. [#steady] The gating variables are initialized to their steady-state values
+   :math:`x_\infty = \alpha_x / (\alpha_x + \beta_x)` at :math:`V_\text{m} = -65` mV.
 
 Problems/Todo
 +++++++++++++
@@ -119,15 +206,7 @@ References
 ++++++++++
 
 
-.. [1] Gerstner W, Kistler W (2002). Spiking neuron models: Single neurons,
-       populations, plasticity. New York: Cambridge University Press
-.. [2] Dayan P, Abbott LF (2001). Theoretical neuroscience: Computational and
-       mathematical modeling of neural systems. Cambridge, MA: MIT Press.
-       https://pure.mpg.de/pubman/faces/ViewItemOverviewPage.jsp?itemId=item_3006127>
-.. [3] Hodgkin AL and Huxley A F (1952). A quantitative description of
-       membrane current and its application to conduction and excitation in
-       nerve. The Journal of Physiology 117.
-       DOI: https://doi.org/10.1113/jphysiol.1952.sp004764
+.. footbibliography::
 
 Sends
 +++++
@@ -150,6 +229,7 @@ Examples using this model
 .. listexamples:: hh_psc_alpha
 
 EndUserDocs */
+// clang-format on
 
 void register_hh_psc_alpha( const std::string& name );
 
@@ -179,8 +259,8 @@ public:
   size_t handles_test_event( CurrentEvent&, size_t ) override;
   size_t handles_test_event( DataLoggingRequest&, size_t ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
   void init_buffers_() override;
@@ -204,22 +284,22 @@ private:
   //! Independent parameters
   struct Parameters_
   {
-    double t_ref_;   //!< refractory time in ms
-    double g_Na;     //!< Sodium Conductance in nS
-    double g_K;      //!< Potassium Conductance in nS
-    double g_L;      //!< Leak Conductance in nS
-    double C_m;      //!< Membrane Capacitance in pF
-    double E_Na;     //!< Sodium Reversal Potential in mV
-    double E_K;      //!< Potassium Reversal Potential in mV
-    double E_L;      //!< Leak reversal Potential (aka resting potential) in mV
-    double tau_synE; //!< Synaptic Time Constant Excitatory Synapse in ms
-    double tau_synI; //!< Synaptic Time Constant for Inhibitory Synapse in ms
-    double I_e;      //!< Constant Current in pA
+    double t_ref_;    //!< refractory time in ms
+    double g_Na;      //!< Sodium Conductance in nS
+    double g_K;       //!< Potassium Conductance in nS
+    double g_L;       //!< Leak Conductance in nS
+    double C_m;       //!< Membrane Capacitance in pF
+    double E_Na;      //!< Sodium Reversal Potential in mV
+    double E_K;       //!< Potassium Reversal Potential in mV
+    double E_L;       //!< Leak reversal Potential (aka resting potential) in mV
+    double tau_synE;  //!< Synaptic Time Constant Excitatory Synapse in ms
+    double tau_synI;  //!< Synaptic Time Constant for Inhibitory Synapse in ms
+    double I_e;       //!< Constant Current in pA
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dictionary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
 public:
@@ -240,28 +320,28 @@ public:
     enum StateVecElems
     {
       V_M = 0,
-      HH_M,   // 1
-      HH_H,   // 2
-      HH_N,   // 3
-      DI_EXC, // 4
-      I_EXC,  // 5
-      DI_INH, // 6
-      I_INH,  // 7
+      HH_M,    // 1
+      HH_H,    // 2
+      HH_N,    // 3
+      DI_EXC,  // 4
+      I_EXC,   // 5
+      DI_INH,  // 6
+      I_INH,   // 7
       STATE_VEC_SIZE
     };
 
 
     //! neuron state, must be C-array for GSL solver
     double y_[ STATE_VEC_SIZE ];
-    int r_; //!< number of refractory steps remaining
+    int r_;  //!< number of refractory steps remaining
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum&, Node* node );
+    void get( Dictionary& ) const;
+    void set( const Dictionary&, Node* node );
   };
 
   // ----------------------------------------------------------------
@@ -272,8 +352,8 @@ private:
    */
   struct Buffers_
   {
-    Buffers_( hh_psc_alpha& );                  //!< Sets buffer pointers to 0
-    Buffers_( const Buffers_&, hh_psc_alpha& ); //!< Sets buffer pointers to 0
+    Buffers_( hh_psc_alpha& );                   //!< Sets buffer pointers to 0
+    Buffers_( const Buffers_&, hh_psc_alpha& );  //!< Sets buffer pointers to 0
 
     //! Logger for all analog data
     UniversalDataLogger< hh_psc_alpha > logger_;
@@ -284,16 +364,16 @@ private:
     RingBuffer currents_;
 
     /** GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
     // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input current injected by CurrentEvent.
@@ -384,22 +464,22 @@ hh_psc_alpha::handles_test_event( DataLoggingRequest& dlr, size_t receptor_type 
 }
 
 inline void
-hh_psc_alpha::get_status( DictionaryDatum& d ) const
+hh_psc_alpha::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-hh_psc_alpha::set_status( const DictionaryDatum& d )
+hh_psc_alpha::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, this );   // throws if BadProperty
-  State_ stmp = S_;      // temporary copy in case of errors
-  stmp.set( d, this );   // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, this );    // throws if BadProperty
+  State_ stmp = S_;       // temporary copy in case of errors
+  stmp.set( d, this );    // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -412,7 +492,7 @@ hh_psc_alpha::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // HAVE_GSL
-#endif // HH_PSC_ALPHA_H
+#endif  // HAVE_GSL
+#endif  // HH_PSC_ALPHA_H

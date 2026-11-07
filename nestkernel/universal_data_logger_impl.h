@@ -31,8 +31,11 @@
 #include "nest_time.h"
 #include "node.h"
 
+namespace nest
+{
+
 template < typename HostNode >
-nest::DynamicUniversalDataLogger< HostNode >::DynamicUniversalDataLogger( HostNode& host )
+DynamicUniversalDataLogger< HostNode >::DynamicUniversalDataLogger( HostNode& host )
   : host_( host )
   , data_loggers_()
 {
@@ -40,7 +43,7 @@ nest::DynamicUniversalDataLogger< HostNode >::DynamicUniversalDataLogger( HostNo
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::reset()
+DynamicUniversalDataLogger< HostNode >::reset()
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -50,7 +53,7 @@ nest::DynamicUniversalDataLogger< HostNode >::reset()
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::init()
+DynamicUniversalDataLogger< HostNode >::init()
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -60,7 +63,7 @@ nest::DynamicUniversalDataLogger< HostNode >::init()
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::record_data( long step )
+DynamicUniversalDataLogger< HostNode >::record_data( long step )
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -70,7 +73,7 @@ nest::DynamicUniversalDataLogger< HostNode >::record_data( long step )
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::handle( const DataLoggingRequest& dlr )
+DynamicUniversalDataLogger< HostNode >::handle( const DataLoggingRequest& dlr )
 {
   const size_t rport = dlr.get_rport();
   assert( rport >= 1 );
@@ -80,20 +83,20 @@ nest::DynamicUniversalDataLogger< HostNode >::handle( const DataLoggingRequest& 
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::reset()
+DynamicUniversalDataLogger< HostNode >::DataLogger_::reset()
 {
   data_.clear();
-  next_rec_step_ = -1; // flag as uninitialized
+  next_rec_step_ = -1;  // flag as uninitialized
 }
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::init()
+DynamicUniversalDataLogger< HostNode >::DataLogger_::init()
 {
   if ( num_vars_ < 1 )
   {
     return;
-  } // not recording anything
+  }  // not recording anything
 
   // Next recording step is in current slice or beyond, indicates that
   // buffer is properly initialized.
@@ -120,7 +123,7 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::init()
   // step to be offset and then iterating until the variable is greater than current simulation time.
   if ( recording_offset_.get_steps() != 0 )
   {
-    next_rec_step_ = recording_offset_.get_steps() - 1; // shifted one to left
+    next_rec_step_ = recording_offset_.get_steps() - 1;  // shifted one to left
     while ( next_rec_step_ <= kernel().simulation_manager.get_time().get_steps() )
     {
       next_rec_step_ += rec_int_steps_;
@@ -133,13 +136,13 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::init()
 
   data_.resize( 2, DataLoggingReply::Container( recs_per_slice, DataLoggingReply::Item( num_vars_ ) ) );
 
-  next_rec_.resize( 2 );               // just for safety's sake
-  next_rec_[ 0 ] = next_rec_[ 1 ] = 0; // start at beginning of buffer
+  next_rec_.resize( 2 );                // just for safety's sake
+  next_rec_[ 0 ] = next_rec_[ 1 ] = 0;  // start at beginning of buffer
 }
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::record_data( const HostNode&, long step )
+DynamicUniversalDataLogger< HostNode >::DataLogger_::record_data( const HostNode&, long step )
 {
   if ( num_vars_ < 1 or step < next_rec_step_ )
   {
@@ -181,12 +184,12 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::record_data( const Ho
 
 template < typename HostNode >
 void
-nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& host, const DataLoggingRequest& request )
+DynamicUniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& host, const DataLoggingRequest& request )
 {
   if ( num_vars_ < 1 )
   {
     return;
-  } // nothing to do
+  }  // nothing to do
 
   // The following assertions will fire if the user forgot to call init()
   // on the data logger.
@@ -232,7 +235,7 @@ nest::DynamicUniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& hos
 }
 
 template < typename HostNode >
-nest::UniversalDataLogger< HostNode >::UniversalDataLogger( HostNode& host )
+UniversalDataLogger< HostNode >::UniversalDataLogger( HostNode& host )
   : host_( host )
   , data_loggers_()
 {
@@ -240,7 +243,7 @@ nest::UniversalDataLogger< HostNode >::UniversalDataLogger( HostNode& host )
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::reset()
+UniversalDataLogger< HostNode >::reset()
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -250,7 +253,7 @@ nest::UniversalDataLogger< HostNode >::reset()
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::init()
+UniversalDataLogger< HostNode >::init()
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -260,7 +263,7 @@ nest::UniversalDataLogger< HostNode >::init()
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::record_data( long step )
+UniversalDataLogger< HostNode >::record_data( long step )
 {
   for ( DLiter_ it = data_loggers_.begin(); it != data_loggers_.end(); ++it )
   {
@@ -270,7 +273,7 @@ nest::UniversalDataLogger< HostNode >::record_data( long step )
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::handle( const DataLoggingRequest& dlr )
+UniversalDataLogger< HostNode >::handle( const DataLoggingRequest& dlr )
 {
   const size_t rport = dlr.get_rport();
   assert( rport >= 1 );
@@ -280,15 +283,15 @@ nest::UniversalDataLogger< HostNode >::handle( const DataLoggingRequest& dlr )
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::DataLogger_::reset()
+UniversalDataLogger< HostNode >::DataLogger_::reset()
 {
   data_.clear();
-  next_rec_step_ = -1; // flag as uninitialized
+  next_rec_step_ = -1;  // flag as uninitialized
 }
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::DataLogger_::init()
+UniversalDataLogger< HostNode >::DataLogger_::init()
 {
   if ( num_vars_ < 1 )
   {
@@ -321,7 +324,7 @@ nest::UniversalDataLogger< HostNode >::DataLogger_::init()
   // step to be offset and then iterating until the variable is greater than current simulation time.
   if ( recording_offset_.get_steps() != 0 )
   {
-    next_rec_step_ = recording_offset_.get_steps() - 1; // shifted one to left
+    next_rec_step_ = recording_offset_.get_steps() - 1;  // shifted one to left
     while ( next_rec_step_ <= kernel().simulation_manager.get_time().get_steps() )
     {
       next_rec_step_ += rec_int_steps_;
@@ -334,13 +337,13 @@ nest::UniversalDataLogger< HostNode >::DataLogger_::init()
 
   data_.resize( 2, DataLoggingReply::Container( recs_per_slice, DataLoggingReply::Item( num_vars_ ) ) );
 
-  next_rec_.resize( 2 );               // just for safety's sake
-  next_rec_[ 0 ] = next_rec_[ 1 ] = 0; // start at beginning of buffer
+  next_rec_.resize( 2 );                // just for safety's sake
+  next_rec_[ 0 ] = next_rec_[ 1 ] = 0;  // start at beginning of buffer
 }
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::DataLogger_::record_data( const HostNode& host, long step )
+UniversalDataLogger< HostNode >::DataLogger_::record_data( const HostNode& host, long step )
 {
   if ( num_vars_ < 1 or step < next_rec_step_ )
   {
@@ -382,7 +385,7 @@ nest::UniversalDataLogger< HostNode >::DataLogger_::record_data( const HostNode&
 
 template < typename HostNode >
 void
-nest::UniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& host, const DataLoggingRequest& request )
+UniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& host, const DataLoggingRequest& request )
 {
   if ( num_vars_ < 1 )
   {
@@ -432,5 +435,7 @@ nest::UniversalDataLogger< HostNode >::DataLogger_::handle( HostNode& host, cons
   // send it off
   kernel().event_delivery_manager.send_to_node( reply );
 }
+
+}  // namespace nest
 
 #endif /* #ifndef UNIVERSAL_DATA_LOGGER_IMPL_H */

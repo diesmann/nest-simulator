@@ -18,19 +18,18 @@
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
 if ( HAVE_BOOST )
-  include_directories( ${BOOST_INCLUDE_DIR} )
-
   add_executable( run_all_cpptests run_all.cpp )
-  add_dependencies( run_all_cpptests sli nest )
 
-  target_link_libraries( run_all_cpptests ${BOOST_LIBRARIES} nestkernel models )
+  target_link_libraries( run_all_cpptests
+    PRIVATE
+      nestkernel OpenMP::OpenMP_CXX
+  )
 
   target_include_directories( run_all_cpptests PRIVATE
     ${PROJECT_SOURCE_DIR}/libnestutil
     ${PROJECT_BINARY_DIR}/libnestutil
     ${PROJECT_SOURCE_DIR}/models
     ${PROJECT_SOURCE_DIR}/nestkernel
-    ${PROJECT_SOURCE_DIR}/sli
     ${PROJECT_SOURCE_DIR}/thirdparty
     )
 

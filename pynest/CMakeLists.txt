@@ -17,70 +17,70 @@
 # You should have received a copy of the GNU General Public License
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
-if ( HAVE_PYTHON )
+execute_process(
+  COMMAND ${Python_EXECUTABLE} "${PROJECT_SOURCE_DIR}/pynest/generate_exception_header.py"
+  "${PROJECT_SOURCE_DIR}" "${PROJECT_BINARY_DIR}"
+  WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+  # Uncomment for debugging: ECHO_OUTPUT_VARIABLE ECHO_ERROR_VARIABLE COMMAND_ECHO STDOUT
+  COMMAND_ERROR_IS_FATAL ANY
+)
 
-  if ( CYTHON_FOUND )
-    include( UseCython )
-    set_source_files_properties(
-        pynestkernel.pyx
-        PROPERTIES CYTHON_IS_CXX TRUE )
+if( NOT NESTKERNEL_API_CXX )
+  # Default: run Cython to generate nestkernel_api.cxx from nestkernel_api.pyx.
+  include( UseCython )
+  set_source_files_properties( nestkernel_api.pyx PROPERTIES CYTHON_IS_CXX TRUE )
+  cython_add_module( nestkernel_api nestkernel_api.pyx )
+else()
+  # Use a pre-generated nestkernel_api.cxx (set by -DNESTKERNEL_API_CXX=<path>).
+  # GENERATED TRUE suppresses CMake's source-existence check at configure time.
+  set_source_files_properties( "${NESTKERNEL_API_CXX}" PROPERTIES GENERATED TRUE )
+  add_library( nestkernel_api MODULE "${NESTKERNEL_API_CXX}" )
+  set_target_properties( nestkernel_api PROPERTIES PREFIX "" )
+endif()
 
-    cython_add_module( pynestkernel pynestkernel.pyx )
-  else ()
-    # require the source pynest/pynestkernel.cxx precompiled
-    set( pynestkernel_generated_file "NOTFOUND" )
-    if ( EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/pynestkernel.cxx )
-      set( pynestkernel_generated_file pynestkernel.cxx )
-    elseif ( EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/pynestkernel.cpp )
-      set( pynestkernel_generated_file pynestkernel.cpp )
-    endif ()
+# nestutil and models are pulled in transitively via nestkernel's PUBLIC links.
+target_link_libraries( nestkernel_api nestkernel )
 
-    if ( pynestkernel_generated_file STREQUAL "NOTFOUND" )
-      message( FATAL_ERROR "You have configured NEST to build the Python bindings PyNEST, but "
-          "either there is no Cython version found on your system or you decided to "
-          "not have NEST cythonize the bindings. Either install Cython (>=0.19.2) or cythonize the "
-          "PyNEST bindings yourself on a system with a suitable version of Cython (>=0.19.2):\n"
-          "    cd <NEST sources>/pynest\n"
-          "    cythonize pynestkernel.pyx\n"
-          "And copy the file `pynestkernel.cpp` into ${CMAKE_CURRENT_SOURCE_DIR}/pynest ." )
-    endif ()
-    python_add_module( pynestkernel ${pynestkernel_generated_file} pynestkernel.pxd )
-    if ( APPLE )
-      set_target_properties( pynestkernel PROPERTIES LINK_FLAGS "-undefined dynamic_lookup" )
-    else ()
-      set_target_properties( pynestkernel PROPERTIES LINK_FLAGS "-Wl,--no-as-needed")
-      target_link_libraries( pynestkernel ${Python_LIBRARIES} )
-    endif ()
-  endif ()
-
-  target_link_libraries( pynestkernel
-      nest_lib nestutil nestkernel sli_lib models
-      )
-
-  target_include_directories( pynestkernel PRIVATE
-      ${PROJECT_BINARY_DIR}/libnestutil
-      ${PROJECT_SOURCE_DIR}/libnestutil
-      ${PROJECT_SOURCE_DIR}/nest
-      ${PROJECT_SOURCE_DIR}/nestkernel
-      ${PROJECT_SOURCE_DIR}/nestkernel/spatial
-      ${PROJECT_SOURCE_DIR}/sli
-      ${PROJECT_SOURCE_DIR}/thirdparty
-      ${PROJECT_SOURCE_DIR}/models
-      ${Python_INCLUDE_DIRS}
-      )
-
-  target_compile_definitions( pynestkernel PRIVATE
-      -D_IS_PYNEST
-      )
-
-  install(DIRECTORY  nest/ ${PROJECT_BINARY_DIR}/pynest/nest/
-      DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYEXECDIR}/nest
-      PATTERN "versionchecker.py.in" EXCLUDE
-  )
-  install( TARGETS pynestkernel DESTINATION ${PYEXECDIR}/nest/ )
-
-  install( DIRECTORY examples/
-      DESTINATION ${CMAKE_INSTALL_DOCDIR}/examples/pynest
-  )
-
+if ( APPLE )
+  set_target_properties( nestkernel_api PROPERTIES LINK_FLAGS "-undefined dynamic_lookup" )
+else ()
+  set_target_properties( nestkernel_api PROPERTIES LINK_FLAGS "-Wl,--no-as-needed" )
+  target_link_libraries( nestkernel_api ${Python_LIBRARIES} )
 endif ()
+
+target_include_directories( nestkernel_api PRIVATE
+  ${PROJECT_BINARY_DIR}/libnestutil
+  ${PROJECT_BINARY_DIR}/pynest
+  ${PROJECT_SOURCE_DIR}/libnestutil
+  ${PROJECT_SOURCE_DIR}/pynest
+  ${PROJECT_SOURCE_DIR}/nestkernel
+  ${PROJECT_SOURCE_DIR}/nestkernel/spatial
+  ${PROJECT_SOURCE_DIR}/thirdparty
+  ${PROJECT_SOURCE_DIR}/models
+  ${Python_INCLUDE_DIRS}
+)
+
+target_compile_definitions( nestkernel_api PRIVATE
+  -D_IS_PYNEST
+)
+
+# TODO PYNEST NG: Do changes only for the new pip installation
+if( NOT "${SKBUILD}" STREQUAL "" )
+  install( DIRECTORY nest/ ${PROJECT_BINARY_DIR}/pynest/nest/
+    DESTINATION ./nest
+    PATTERN "versionchecker.py.in" EXCLUDE
+  )
+  install( DIRECTORY examples/
+    DESTINATION ./nest/doc/examples/pynest
+  )
+  install( TARGETS nestkernel_api DESTINATION ./nest )
+else()
+  install( DIRECTORY nest/ ${PROJECT_BINARY_DIR}/pynest/nest/
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/${PYEXECDIR}/nest
+    PATTERN "versionchecker.py.in" EXCLUDE
+  )
+  install( DIRECTORY examples/
+    DESTINATION ${CMAKE_INSTALL_DOCDIR}/examples/pynest
+  )
+  install( TARGETS nestkernel_api DESTINATION ${PYEXECDIR}/nest/ )
+endif()

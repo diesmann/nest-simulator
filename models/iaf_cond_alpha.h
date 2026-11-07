@@ -56,43 +56,134 @@ namespace nest
  */
 extern "C" int iaf_cond_alpha_dynamics( double, const double*, double*, void* );
 
+// Disable clang-formatting for documentation due to over-wide tables.
+// clang-format off
 /* BeginUserDocs: neuron, integrate-and-fire, conductance-based, hard threshold
 
 Short description
 +++++++++++++++++
 
-Simple conductance based leaky integrate-and-fire neuron model
+Leaky integrate-and-fire neuron model with alpha-shaped synaptic conductances
 
 Description
 +++++++++++
 
-``iaf_cond_alpha`` is an implementation of a spiking neuron using IAF dynamics with
-conductance-based synapses. Incoming spike events induce a postsynaptic change
-of conductance modelled by an alpha function. The alpha function
-is normalized such that an event of weight 1.0 results in a peak conductance of 1 nS
-at :math:`t = \tau_{syn}`.
+``iaf_cond_alpha`` is a leaky integrate-and-fire neuron model with
 
-See also [1]_, [2]_, [3]_.
+* a hard threshold,
+* a fixed refractory period,
+* :math:`\alpha`-shaped synaptic conductances, normalized such that an event of weight 1.0 results in a peak conductance of 1 nS.
+
+The model follows the conductance-based integrate-and-fire framework discussed in
+:footcite:p:`Meffin2004`, :footcite:p:`Bernander1991`, :footcite:p:`Kuhn2004`.
+
+Membrane potential evolution, spike emission, and refractoriness
+................................................................
+
+The membrane potential evolves according to
+
+.. math::
+
+   \frac{dV_\text{m}}{dt} = \frac{ -g_{\text{L}} (V_{\text{m}} - E_{\text{L}}) - I_{\text{syn}} + I_\text{e} } {C_{\text{m}}}
+
+where the synaptic input current :math:`I_{\text{syn}}(t)` is discussed below and :math:`I_\text{e}` is
+a constant input current set as a model parameter.
+
+A spike is emitted at time step :math:`t^*=t^{k+1}` if
+
+.. math::
+
+   V_\text{m}(t_k) < V_{th} \quad\text{and}\quad V_\text{m}(t^{k+1})\geq V_\text{th} \;.
+
+Subsequently,
+
+.. math::
+
+   V_\text{m}(t) = V_{\text{reset}} \quad\text{for}\quad t^* \leq t \leq t^* + t_{\text{ref}} \;,
+
+that is, the membrane potential is clamped to :math:`V_{\text{reset}}` during the refractory period.
+
+Synaptic input
+..............
+
+The synaptic input current has an excitatory and an inhibitory component
+
+.. math::
+
+   I_{\text{syn}}(t) = I_{\text{syn, ex}}(t) + I_{\text{syn, in}}(t)
+
+where
+
+.. math::
+
+   I_{\text{syn, X}}(t) = (V_{\text{m}}(t) - E_{\text{syn, X}}) \sum_{j} w_j \sum_k g_{\text{X}}(t-t_j^k-d_j) \;,
+
+where :math:`j` indexes either excitatory (:math:`\text{X} = \text{ex}`)
+or inhibitory (:math:`\text{X} = \text{in}`) presynaptic neurons,
+:math:`k` indexes the spike times of neuron :math:`j`, and :math:`d_j`
+is the delay from neuron :math:`j`.
+
+The individual synaptic conductances are given by
+
+.. math::
+
+   g_{\text{X}}(t) = \frac{e}{\tau_{\text{syn, X}}} \,  t \, e^{-\frac{t}{\tau_{\text{syn, X}}}} \Theta(t)
+
+where :math:`\Theta(x)` is the Heaviside step function. The conductances are normalized to unit
+peak, that is,
+
+.. math::
+
+   g_{\text{X}}(t= \tau_{\text{syn, X}}) = 1 \;,
+
+as the connnection of the weight :math:`w_{j}`  from neuron :math:`j` (excitatory if
+:math:`w_{j} > 0` or inhibitory if :math:`w_{j} < 0`) is written explicitly in the equation for total
+synaptic current.
+
+.. note::
+
+   This model integrates the subthreshold and synaptic dynamics with an
+   adaptive-step-size Runge-Kutta-Fehlberg solver from the GNU Scientific Library.
+
+.. note::
+
+   Incoming spikes are routed to the excitatory or inhibitory synapse by the **sign of the
+   connection weight**. A positive weight targets the excitatory synapse, a negative weight
+   the inhibitory one. Only the absolute value of the weight sets the conductance
+   amplitude. Spike connections must use the default ``receptor_type`` of 0.
+
+   See :ref:`synapse_selection` for the conventions used by other models.
 
 Parameters
 ++++++++++
 
 The following parameters can be set in the status dictionary.
 
-=========== ======= ===========================================================
- V_m        mV      Membrane potential
- E_L        mV      Leak reversal potential
- C_m        pF      Capacity of the membrane
- t_ref      ms      Duration of refractory period
- V_th       mV      Spike threshold
- V_reset    mV      Reset potential of the membrane
- E_ex       mV      Excitatory reversal potential
- E_in       mV      Inhibitory reversal potential
- g_L        nS      Leak conductance
- tau_syn_ex ms      Rise time of the excitatory synaptic alpha function
- tau_syn_in ms      Rise time of the inhibitory synaptic alpha function
- I_e        pA      Constant input current
-=========== ======= ===========================================================
+=============== ================== =============================== ========================================================================
+**Parameter**   **Default**        **Math equivalent**             **Description**
+=============== ================== =============================== ========================================================================
+``E_L``         -70 mV             :math:`E_\text{L}`              Leak reversal potential
+``C_m``         250 pF             :math:`C_{\text{m}}`            Capacity of the membrane
+``t_ref``       2 ms               :math:`t_{\text{ref}}`          Duration of refractory period
+``V_th``        -55 mV             :math:`V_{\text{th}}`           Spike threshold
+``V_reset``     -60 mV             :math:`V_{\text{reset}}`        Reset potential of the membrane
+``E_ex``        0 mV               :math:`E_\text{ex}`             Excitatory reversal potential
+``E_in``        -85 mV             :math:`E_\text{in}`             Inhibitory reversal potential
+``g_L``         16.6667 nS         :math:`g_\text{L}`              Leak conductance
+``tau_syn_ex``  0.2 ms             :math:`\tau_{\text{syn, ex}}`   Rise time of the excitatory synaptic conductance
+``tau_syn_in``  2.0 ms             :math:`\tau_{\text{syn, in}}`   Rise time of the inhibitory synaptic conductance
+``I_e``         0 pA               :math:`I_\text{e}`              Constant input current
+=============== ================== =============================== ========================================================================
+
+The following state variables evolve during simulation and are available either as neuron properties or as recordables.
+
+================== ================= ========================== =================================
+**State variable** **Initial value** **Math equivalent**        **Description**
+================== ================= ========================== =================================
+``V_m``            -70 mV            :math:`V_{\text{m}}`       Membrane potential
+``g_ex``           0 nS              :math:`g_{\text{ex}}`      Excitatory synaptic conductance
+``g_in``           0 nS              :math:`g_{\text{in}}`      Inhibitory synaptic conductance
+================== ================= ========================== =================================
 
 Sends
 +++++
@@ -107,20 +198,7 @@ SpikeEvent, CurrentEvent, DataLoggingRequest
 References
 ++++++++++
 
-.. [1] Meffin H, Burkitt AN, Grayden DB (2004). An analytical
-       model for the large, fluctuating synaptic conductance state typical of
-       neocortical neurons in vivo. Journal of Computational Neuroscience,
-       16:159-175.
-       DOI: https://doi.org/10.1023/B:JCNS.0000014108.03012.81
-.. [2] Bernander O, Douglas RJ, Martin KAC, Koch C (1991). Synaptic background
-       activity influences spatiotemporal integration in single pyramidal
-       cells.  Proceedings of the National Academy of Science USA,
-       88(24):11569-11573.
-       DOI: https://doi.org/10.1073/pnas.88.24.11569
-.. [3] Kuhn A, Rotter S (2004) Neuronal integration of synaptic input in
-       the fluctuation- driven regime. Journal of Neuroscience,
-       24(10):2345-2356
-       DOI: https://doi.org/10.1523/JNEUROSCI.3349-03.2004
+.. footbibliography::
 
 See also
 ++++++++
@@ -133,6 +211,7 @@ Examples using this model
 .. listexamples:: iaf_cond_alpha
 
 EndUserDocs */
+// clang-format on
 
 void register_iaf_cond_alpha( const std::string& name );
 
@@ -165,8 +244,8 @@ public:
   void handle( CurrentEvent& ) override;
   void handle( DataLoggingRequest& ) override;
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
 private:
   void init_buffers_() override;
@@ -190,22 +269,22 @@ private:
   //! Model parameters
   struct Parameters_
   {
-    double V_th;     //!< Threshold Potential in mV
-    double V_reset;  //!< Reset Potential in mV
-    double t_ref;    //!< Refractory period in ms
-    double g_L;      //!< Leak Conductance in nS
-    double C_m;      //!< Membrane Capacitance in pF
-    double E_ex;     //!< Excitatory reversal Potential in mV
-    double E_in;     //!< Inhibitory reversal Potential in mV
-    double E_L;      //!< Leak reversal Potential (aka resting potential) in mV
-    double tau_synE; //!< Synaptic Time Constant Excitatory Synapse in ms
-    double tau_synI; //!< Synaptic Time Constant for Inhibitory Synapse in ms
-    double I_e;      //!< Constant Current in pA
+    double V_th;      //!< Threshold Potential in mV
+    double V_reset;   //!< Reset Potential in mV
+    double t_ref;     //!< Refractory period in ms
+    double g_L;       //!< Leak Conductance in nS
+    double C_m;       //!< Membrane Capacitance in pF
+    double E_ex;      //!< Excitatory reversal Potential in mV
+    double E_in;      //!< Inhibitory reversal Potential in mV
+    double E_L;       //!< Leak reversal Potential (aka resting potential) in mV
+    double tau_synE;  //!< Synaptic Time Constant Excitatory Synapse in ms
+    double tau_synI;  //!< Synaptic Time Constant for Inhibitory Synapse in ms
+    double I_e;       //!< Constant Current in pA
 
-    Parameters_(); //!< Set default parameter values
+    Parameters_();  //!< Set default parameter values
 
-    void get( DictionaryDatum& ) const;             //!< Store current values in dictionary
-    void set( const DictionaryDatum&, Node* node ); //!< Set values from dictionary
+    void get( Dictionary& ) const;              //!< Store current values in Dictionary
+    void set( const Dictionary&, Node* node );  //!< Set values from Dictionary
   };
 
   // State variables class --------------------------------------------
@@ -239,18 +318,18 @@ public:
     //!< number of refractory steps remaining
     int r;
 
-    State_( const Parameters_& ); //!< Default initialization
+    State_( const Parameters_& );  //!< Default initialization
     State_( const State_& );
 
     State_& operator=( const State_& );
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in Dictionary
 
     /**
-     * Set state from values in dictionary.
+     * Set state from values in Dictionary.
      * Requires Parameters_ as argument to, eg, check bounds.'
      */
-    void set( const DictionaryDatum&, const Parameters_&, Node* );
+    void set( const Dictionary&, const Parameters_&, Node* );
   };
 
 private:
@@ -264,8 +343,8 @@ private:
    */
   struct Buffers_
   {
-    Buffers_( iaf_cond_alpha& );                  //!< Sets buffer pointers to 0
-    Buffers_( const Buffers_&, iaf_cond_alpha& ); //!< Sets buffer pointers to 0
+    Buffers_( iaf_cond_alpha& );                   //!< Sets buffer pointers to 0
+    Buffers_( const Buffers_&, iaf_cond_alpha& );  //!< Sets buffer pointers to 0
 
     //! Logger for all analog data
     UniversalDataLogger< iaf_cond_alpha > logger_;
@@ -276,16 +355,16 @@ private:
     RingBuffer currents_;
 
     /* GSL ODE stuff */
-    gsl_odeiv_step* s_;    //!< stepping function
-    gsl_odeiv_control* c_; //!< adaptive stepsize control function
-    gsl_odeiv_evolve* e_;  //!< evolution function
-    gsl_odeiv_system sys_; //!< struct describing system
+    gsl_odeiv_step* s_;     //!< stepping function
+    gsl_odeiv_control* c_;  //!< adaptive stepsize control function
+    gsl_odeiv_evolve* e_;   //!< evolution function
+    gsl_odeiv_system sys_;  //!< struct describing system
 
     // Since IntegrationStep_ is initialized with step_, and the resolution
     // cannot change after nodes have been created, it is safe to place both
     // here.
-    double step_;            //!< step size in ms
-    double IntegrationStep_; //!< current integration time step, updated by GSL
+    double step_;             //!< step size in ms
+    double IntegrationStep_;  //!< current integration time step, updated by GSL
 
     /**
      * Input current injected by CurrentEvent.
@@ -392,22 +471,22 @@ iaf_cond_alpha::handles_test_event( DataLoggingRequest& dlr, size_t receptor_typ
 }
 
 inline void
-iaf_cond_alpha::get_status( DictionaryDatum& d ) const
+iaf_cond_alpha::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-iaf_cond_alpha::set_status( const DictionaryDatum& d )
+iaf_cond_alpha::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;     // temporary copy in case of errors
-  ptmp.set( d, this );       // throws if BadProperty
-  State_ stmp = S_;          // temporary copy in case of errors
-  stmp.set( d, ptmp, this ); // throws if BadProperty
+  Parameters_ ptmp = P_;      // temporary copy in case of errors
+  ptmp.set( d, this );        // throws if BadProperty
+  State_ stmp = S_;           // temporary copy in case of errors
+  stmp.set( d, ptmp, this );  // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -420,8 +499,8 @@ iaf_cond_alpha::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // IAF_COND_ALPHA_H
+#endif  // IAF_COND_ALPHA_H
 
-#endif // HAVE_GSL
+#endif  // HAVE_GSL

@@ -71,7 +71,7 @@ MusicEventHandler::~MusicEventHandler()
 }
 
 void
-MusicEventHandler::register_channel( size_t channel, nest::Node* mp )
+MusicEventHandler::register_channel( size_t channel, Node* mp )
 {
   if ( static_cast< size_t >( channel ) >= channelmap_.size() )
   {
@@ -138,7 +138,7 @@ MusicEventHandler::publish_port()
       msg += String::compose( " and max buffered=%1 ticks", max_buffered_ );
     }
     msg += ".";
-    LOG( M_INFO, "MusicEventHandler::publish_port()", msg.c_str() );
+    LOG( VerbosityLevel::INFO, "MusicEventHandler::publish_port()", msg.c_str() );
   }
 }
 
@@ -146,7 +146,7 @@ void
 MusicEventHandler::operator()( double t, MUSIC::GlobalIndex channel )
 {
   assert( channelmap_[ channel ] != 0 );
-  eventqueue_[ channel ].push( t * 1e3 ); // MUSIC uses seconds as time unit
+  eventqueue_[ channel ].push( t * 1e3 );  // MUSIC uses seconds as time unit
 }
 
 void
@@ -163,13 +163,13 @@ MusicEventHandler::update( Time const& origin, const long from, const long to )
         if ( T > origin + Time::step( from ) - Time::ms( acceptable_latency_ )
           and T <= origin + Time::step( from + to ) )
         {
-          nest::SpikeEvent se;
+          SpikeEvent se;
           se.set_offset( Time( Time::step( T.get_steps() ) ).get_ms() - T.get_ms() );
           se.set_stamp( T );
 
           // deliver to the proxy for this channel
           channelmap_[ channel ]->handle( se );
-          eventqueue_[ channel ].pop(); // remove the sent event from the queue
+          eventqueue_[ channel ].pop();  // remove the sent event from the queue
         }
         else
         {
@@ -180,6 +180,6 @@ MusicEventHandler::update( Time const& origin, const long from, const long to )
   }
 }
 
-} // namespace nest
+}  // namespace nest
 
 #endif /* #ifdef HAVE_MUSIC */

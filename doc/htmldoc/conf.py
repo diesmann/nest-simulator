@@ -20,29 +20,30 @@
 # along with NEST.  If not, see <http://www.gnu.org/licenses/>.
 
 
-import json
 import os
-
-# import shutil
 import subprocess
 import sys
 from pathlib import Path
-from shutil import copyfile
 from urllib.request import urlretrieve
 
 # Add the extension modules to the path
-extension_module_dir = os.path.abspath("./_ext")
-sys.path.append(extension_module_dir)
+extension_module_dir = Path("_ext").resolve()
+sys.path.append(str(extension_module_dir))
 
-repo_root_dir = os.path.abspath("../..")
-pynest_dir = os.path.join(repo_root_dir, "pynest")
+repo_root_dir = Path("../..").resolve()
+pynest_dir = repo_root_dir / "pynest"
 # Add the NEST Python module to the path (just the py files, the binaries are mocked)
-sys.path.append(pynest_dir)
+sys.path.append(str(pynest_dir))
+# Suppress the NEST welcome message during docs build. Without this, importing
+# nest triggers ll_api.init() which prints version info using mocked kernel
+# values, producing nonsensical output like
+# "Version: nest.nestkernel_api.llapi_get_kernel_status.build_info.version".
+os.environ.setdefault("PYNEST_QUIET", "1")
 
 # -- General configuration ------------------------------------------------
 
 source_suffix = ".rst"
-master_doc = "index"
+root_doc = "index"
 extensions = [
     "sphinx_gallery.gen_gallery",
     "list_examples",
@@ -54,7 +55,6 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinxcontrib.mermaid",
     "sphinx.ext.mathjax",
-    "sphinx_carousel.carousel",
     "sphinxcontrib.plantuml",
     "add_button_notebook",
     "IPython.sphinxext.ipython_console_highlighting",
@@ -66,9 +66,22 @@ extensions = [
     "HoverXTooltip",
     "sphinx_copybutton",
     "notfound.extension",
+    "sphinxcontrib.bibtex",
 ]
 
-autodoc_mock_imports = ["nest.pynestkernel", "nest.ll_api"]
+bibtex_bibfiles = ["refs.bib"]
+bibtex_default_style = "unsrt"
+
+autodoc_mock_imports = [
+    "nest.nestkernel_api",  # compiled binary
+]
+# The `nest` module intentionally freezes its attribute namespace (see
+# pynest/nest/__init__.py `_setattr_error`) to catch public-API typos.
+# Sphinx's type-comment normalization pass unconditionally does
+# `module.__annotations__ = {}` on every documented module, which trips
+# that guard. We don't use Python 2-style type comments anywhere, so
+# disable this pass rather than punching a hole in the module freeze.
+autodoc_use_type_comments = False
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["templates"]
@@ -77,10 +90,10 @@ templates_path = ["templates"]
 plantuml = "java -jar /tmp/plantuml.jar"
 plantuml_output_format = "svg_img"
 sphinx_gallery_conf = {
-    # path to your examples scripts
-    "examples_dirs": "../../pynest/examples",
-    # path where to save gallery generated examples
-    "gallery_dirs": "auto_examples",
+    # paths to the gallery source scripts (examples and the PyNEST tutorial)
+    "examples_dirs": ["../../pynest/examples", "tutorials/pynest_tutorial"],
+    # paths where the generated galleries are written (parallel to examples_dirs)
+    "gallery_dirs": ["auto_examples", "auto_pynest_tutorial"],
     "plot_gallery": "False",
     "download_all_examples": False,
     "copyfile_regex": r".*\.rst|.*\.png|.*\.svg|Snakefile|.*\.txt",
@@ -100,6 +113,9 @@ mermaid_version = "10.3.0"
 
 # disable require js - mermaid doesn't work if require.js is loaded before it
 nbsphinx_requirejs_path = ""
+# Never execute notebooks during the build; render stored cell outputs as-is.
+# nest is not importable in the docs environment (compiled kernel not present).
+nbsphinx_execute = "never"
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
@@ -123,6 +139,8 @@ exclude_patterns = [
     "Thumbs.db",
     "auto_examples/**.ipynb",
     "auto_examples/index.rst",
+    "auto_pynest_tutorial/**.ipynb",
+    "auto_pynest_tutorial/index.rst",
     "nest_by_example",
 ]
 
@@ -178,6 +196,10 @@ html_theme_options = {
 
 html_static_path = ["static"]
 
+# Files copied verbatim to the output root (served as-is, not processed by Sphinx).
+# llms.txt provides an AI-agent-friendly index of the documentation.
+html_extra_path = ["llms.txt"]
+
 html_css_files = [
     "css/custom.css",
     "css/filter_models.css",
@@ -212,10 +234,12 @@ intersphinx_mapping = {
     "desktop": ("https://nest-desktop.readthedocs.io/en/latest/", None),
     "gpu": ("https://nest-gpu.readthedocs.io/en/latest/", None),
     "neat": ("https://nest-neat.readthedocs.io/en/latest/", None),
+    "pd14": ("https://microcircuit-pd14-model.readthedocs.io/en/latest", None),
     "neuromorph": ("https://electronicvisions.github.io/hbp-sp9-guidebook/", None),
     "arbor": ("https://docs.arbor-sim.org/en/latest/", None),
     "tvb": ("https://docs.thevirtualbrain.org/", None),
     "extmod": ("https://nest-extension-module.readthedocs.io/en/latest/", None),
+    "benchmarks": ("https://performance-benchmarks.readthedocs.io/en/latest", None),
 }
 
 suppress_warnings = ["config.cache"]
@@ -238,7 +262,7 @@ nitpick_ignore = [
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "NESTsimulator.tex", "NEST Simulator Documentation", "NEST Developer Community", "manual"),
+    (root_doc, "NESTsimulator.tex", "NEST Simulator Documentation", "NEST Developer Community", "manual"),
 ]
 
 
@@ -246,7 +270,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "nestsimulator", "NEST Simulator Documentation", [author], 1)]
+man_pages = [(root_doc, "nestsimulator", "NEST Simulator Documentation", [author], 1)]
 
 
 # -- Options for Texinfo output -------------------------------------------
@@ -256,7 +280,7 @@ man_pages = [(master_doc, "nestsimulator", "NEST Simulator Documentation", [auth
 #  dir menu entry, description, category)
 texinfo_documents = [
     (
-        master_doc,
+        root_doc,
         "NESTsimulator",
         "NEST Simulator Documentation",
         author,
@@ -294,7 +318,7 @@ def patch_documentation(patch_url):
     """
     print("Preparing patch...")
     try:
-        git_dir = f"{repo_root_dir}/.git"
+        git_dir = repo_root_dir / ".git"
         git_hash = subprocess.check_output(
             f"GIT_DIR='{git_dir}' git rev-parse HEAD", shell=True, encoding="utf8"
         ).strip()

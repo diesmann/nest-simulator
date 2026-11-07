@@ -38,8 +38,6 @@
 // Includes from nestkernel:
 #include "nest_types.h"
 
-class Token;
-
 namespace nest
 {
 class Time;
@@ -53,8 +51,7 @@ namespace nest
  *  Class to handle simulation time and realtime.
  *
  *  All times given in multiples of "tics":
- *  A "tic" is a microsecond by default, but may be changed through
- *  the option -Dtics_per_ms to configure.
+ *  A "tic" is a microsecond by default (1000 tics per ms).
  *
  *  User access to time only through accessor functions:
  *  - Times can be added, subtracted, and multiplied by ints
@@ -69,8 +66,8 @@ namespace nest
  *  The largest representable time is available through Time::max().
  *
  *  @NOTE
- *  - The time base (tics per millisecond) can only be set at
- *    compile time and by the Time::set_resolution().
+ *  - The time base (tics per millisecond) can be set by
+ *    Time::set_resolution().
  *  - Times in ms are rounded up to the next tic interval.
  *    This ensures that the time intervals (0, h] are open at the left
  *    point and closed at the right point. It also ensures compatibility with
@@ -83,9 +80,6 @@ namespace nest
  *    Time objects, must ensure that these are recalibrated before the
  *    simulation starts. This is necessary to ensure that step values
  *    are updated after a change in resolution.
- *  - The default resolution can be changed using the --with-tics_per_step
- *    option to configure.
- *
  *
  *  @NOTE
  *  The step-time counter is NOT changed when the resolution is
@@ -226,14 +220,14 @@ protected:
   {
     static const tic_t tics = tic_t_max / Range::INF_MARGIN + 1;
     static const long steps = delay_max;
-#define LIM_POS_INF_ms DBL_MAX // because C++ bites
+#define LIM_POS_INF_ms DBL_MAX  // because C++ bites
   } LIM_POS_INF;
 
   static struct LimitNegInf
   {
     static const tic_t tics = -tic_t_max / Range::INF_MARGIN - 1;
     static const long steps = -delay_max;
-#define LIM_NEG_INF_ms ( -DBL_MAX ) // c++ bites
+#define LIM_NEG_INF_ms ( -DBL_MAX )  // c++ bites
   } LIM_NEG_INF;
 
   /////////////////////////////////////////////////////////////
@@ -264,10 +258,6 @@ public:
       : t( t )
     {
     }
-
-    static double fromtoken( const Token& t );
-    explicit ms( const Token& t )
-      : t( fromtoken( t ) ) {};
   };
 
   struct ms_stamp
@@ -297,21 +287,21 @@ public:
 
   Time( tic t )
     : tics( ( time_abs( t.t ) < LIM_MAX.tics ) ? t.t
-        : ( t.t < 0 )                          ? LIM_NEG_INF.tics
+          : ( t.t < 0 )                        ? LIM_NEG_INF.tics
                                                : LIM_POS_INF.tics )
   {
   }
 
   Time( step t )
     : tics( ( time_abs( t.t ) < LIM_MAX.steps ) ? t.t * Range::TICS_PER_STEP
-        : ( t.t < 0 )                           ? LIM_NEG_INF.tics
+          : ( t.t < 0 )                         ? LIM_NEG_INF.tics
                                                 : LIM_POS_INF.tics )
   {
   }
 
   Time( ms t )
     : tics( ( time_abs( t.t ) < LIM_MAX.ms ) ? static_cast< tic_t >( t.t * Range::TICS_PER_MS + 0.5 )
-        : ( t.t < 0 )                        ? LIM_NEG_INF.tics
+          : ( t.t < 0 )                      ? LIM_NEG_INF.tics
                                              : LIM_POS_INF.tics )
   {
   }
@@ -364,12 +354,12 @@ public:
   succ() const
   {
     return tic( tics + Range::TICS_PER_STEP );
-  } // check range
+  }  // check range
   Time
   pred() const
   {
     return tic( tics - Range::TICS_PER_STEP );
-  } // check range
+  }  // check range
 
   /////////////////////////////////////////////////////////////
   // Subtypes of Time (bool tests)
@@ -393,7 +383,7 @@ public:
   bool
   is_pos_inf() const
   {
-    return tics >= LIM_POS_INF.tics; // see comment for is_neg_inf()
+    return tics >= LIM_POS_INF.tics;  // see comment for is_neg_inf()
   }
 
   bool
@@ -599,13 +589,13 @@ operator>=( const Time& t1, const Time& t2 )
 inline Time
 operator+( const Time& t1, const Time& t2 )
 {
-  return Time::tic( t1.tics + t2.tics ); // check range
+  return Time::tic( t1.tics + t2.tics );  // check range
 }
 
 inline Time
 operator-( const Time& t1, const Time& t2 )
 {
-  return Time::tic( t1.tics - t2.tics ); // check range
+  return Time::tic( t1.tics - t2.tics );  // check range
 }
 
 inline Time
@@ -615,7 +605,7 @@ operator*( const long factor, const Time& t )
   // if no overflow:
   if ( t.tics == 0 or n / t.tics == factor )
   {
-    return Time::tic( n ); // check range
+    return Time::tic( n );  // check range
   }
   if ( ( t.tics > 0 and factor > 0 ) or ( t.tics < 0 and factor < 0 ) )
   {
@@ -632,7 +622,7 @@ operator*( const Time& t, long factor )
 {
   return factor * t;
 }
-} // namespace
+}  // namespace
 
 std::ostream& operator<<( std::ostream&, const nest::Time& );
 

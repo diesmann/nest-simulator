@@ -32,9 +32,9 @@
 #include "vp_manager_impl.h"
 
 // C++ includes:
-#include <algorithm> // copy
-#include <cmath>     // lcm
-#include <numeric>   // accumulate
+#include <algorithm>  // copy
+#include <cmath>      // lcm
+#include <numeric>    // accumulate
 
 
 namespace nest
@@ -75,7 +75,7 @@ nc_const_iterator::nc_const_iterator( NodeCollectionPTR collection_ptr,
   , composite_collection_( nullptr )
 {
   assert( not collection_ptr.get() or collection_ptr.get() == &collection );
-  assert( element_idx_ <= collection.size() ); // allow == for end()
+  assert( element_idx_ <= collection.size() );  // allow == for end()
 
   FULL_LOGGING_ONLY(
     kernel().write_to_dump( String::compose( "NCIT Prim ctor rk %1, thr %2, pix %3, eix %4, step %5, kind %6, rvp %7",
@@ -246,13 +246,13 @@ nc_const_iterator::advance_local_iter_to_new_part_( size_t n )
         break;
       }
       default:
-        assert( false ); // should not be here, otherwise kind_ is inconsistent
+        assert( false );  // should not be here, otherwise kind_ is inconsistent
         break;
       }
     }
     else
     {
-      break; // no more parts to search
+      break;  // no more parts to search
     }
   }
 
@@ -263,13 +263,6 @@ nc_const_iterator::advance_local_iter_to_new_part_( size_t n )
     part_idx_ = composite_collection_->last_part_;
     element_idx_ = composite_collection_->last_elem_ + 1;
   }
-}
-
-void
-nc_const_iterator::print_me( std::ostream& out ) const
-{
-  out << "[[" << this << " pc: " << primitive_collection_ << ", cc: " << composite_collection_ << ", px: " << part_idx_
-      << ", ex: " << element_idx_ << "]]";
 }
 
 NodeIDTriple
@@ -318,53 +311,10 @@ NodeCollection::NodeCollection()
 }
 
 NodeCollectionPTR
-NodeCollection::create( const IntVectorDatum& node_ids_datum )
-{
-  if ( node_ids_datum->empty() )
-  {
-    return NodeCollection::create_();
-  }
-
-  std::vector< size_t > node_ids;
-  node_ids.reserve( node_ids_datum->size() );
-  for ( const auto& datum : *node_ids_datum )
-  {
-    node_ids.push_back( static_cast< size_t >( getValue< long >( datum ) ) );
-  }
-
-  if ( not std::is_sorted( node_ids.begin(), node_ids.end() ) )
-  {
-    throw BadProperty( "Node IDs must be sorted in ascending order" );
-  }
-  return NodeCollection::create_( node_ids );
-}
-
-NodeCollectionPTR
-NodeCollection::create( const TokenArray& node_ids_array )
-{
-  if ( node_ids_array.empty() )
-  {
-    return NodeCollection::create_();
-  }
-
-  std::vector< size_t > node_ids;
-  node_ids.reserve( node_ids_array.size() );
-  for ( const auto& node_id_token : node_ids_array )
-  {
-    node_ids.push_back( static_cast< size_t >( getValue< long >( node_id_token ) ) );
-  }
-
-  if ( not std::is_sorted( node_ids.begin(), node_ids.end() ) )
-  {
-    throw BadProperty( "Node IDs must be sorted in ascending order" );
-  }
-  return NodeCollection::create_( node_ids );
-}
-
-NodeCollectionPTR
 NodeCollection::create( const size_t node_id )
 {
-  return NodeCollection::create_( { node_id } );
+  std::vector< size_t > node_id_vec = { node_id };
+  return NodeCollection::create_( node_id_vec );
 }
 
 NodeCollectionPTR
@@ -452,7 +402,7 @@ NodeCollection::valid() const
 }
 
 void
-NodeCollection::get_metadata_status( DictionaryDatum& d ) const
+NodeCollection::get_metadata_status( Dictionary& d ) const
 {
   NodeCollectionMetadataPTR meta = get_metadata();
   if ( not meta )
@@ -471,6 +421,7 @@ NodeCollectionPrimitive::NodeCollectionPrimitive( size_t first,
   , model_id_( model_id )
   , metadata_( meta )
   , nodes_have_no_proxies_( not kernel().model_manager.get_node_model( model_id_ )->has_proxies() )
+  , nodes_are_local_receivers_( kernel().model_manager.get_node_model( model_id_ )->local_receiver() )
 {
   assert( first_ <= last_ );
   assert_consistent_model_ids_( model_id_ );
@@ -482,6 +433,7 @@ NodeCollectionPrimitive::NodeCollectionPrimitive( size_t first, size_t last, siz
   , model_id_( model_id )
   , metadata_( nullptr )
   , nodes_have_no_proxies_( not kernel().model_manager.get_node_model( model_id_ )->has_proxies() )
+  , nodes_are_local_receivers_( kernel().model_manager.get_node_model( model_id_ )->local_receiver() )
 {
   assert( first_ <= last_ );
 }
@@ -506,7 +458,9 @@ NodeCollectionPrimitive::NodeCollectionPrimitive( size_t first, size_t last )
     }
   }
   model_id_ = first_model_id;
-  nodes_have_no_proxies_ = not kernel().model_manager.get_node_model( model_id_ )->has_proxies();
+  const auto& model = kernel().model_manager.get_node_model( model_id_ );
+  nodes_have_no_proxies_ = not model->has_proxies();
+  nodes_are_local_receivers_ = model->local_receiver();
 }
 
 NodeCollectionPrimitive::NodeCollectionPrimitive()
@@ -515,13 +469,14 @@ NodeCollectionPrimitive::NodeCollectionPrimitive()
   , model_id_( invalid_index )
   , metadata_( nullptr )
   , nodes_have_no_proxies_( false )
+  , nodes_are_local_receivers_( false )
 {
 }
 
-ArrayDatum
+std::vector< size_t >
 NodeCollection::to_array( const std::string& selection ) const
 {
-  ArrayDatum node_ids;
+  std::vector< size_t > node_ids;
 
   if ( selection == "thread" )
   {
@@ -542,8 +497,8 @@ NodeCollection::to_array( const std::string& selection ) const
         {
           node_ids.push_back( ( *it ).node_id );
         }
-      } // end critical
-    }   // end parallel
+      }  // end critical
+    }  // end parallel
   }
   else
   {
@@ -610,7 +565,7 @@ NodeCollectionPrimitive::operator+( NodeCollectionPTR rhs ) const
 
   auto const* const rhs_ptr = dynamic_cast< NodeCollectionPrimitive const* >( rhs.get() );
 
-  if ( rhs_ptr ) // if rhs is Primitive
+  if ( rhs_ptr )  // if rhs is Primitive
   {
     if ( overlapping( *rhs_ptr ) )
     {
@@ -636,11 +591,11 @@ NodeCollectionPrimitive::operator+( NodeCollectionPTR rhs ) const
       return std::make_shared< NodeCollectionComposite >( primitives );
     }
   }
-  else // if rhs is not Primitive, i.e. Composite
+  else  // if rhs is not Primitive, i.e. Composite
   {
     auto const* const rhs_ptr = dynamic_cast< NodeCollectionComposite* >( rhs.get() );
     assert( rhs_ptr );
-    return rhs_ptr->operator+( *this ); // use Composite operator+
+    return rhs_ptr->operator+( *this );  // use Composite operator+
   }
 }
 
@@ -653,9 +608,9 @@ NodeCollectionPrimitive::rank_local_begin( NodeCollectionPTR cp ) const
     kernel().mpi_manager.get_process_id_of_vp( kernel().vp_manager.node_id_to_vp( first_ ) );
   const size_t elem_idx = ( rank - first_elem_rank + num_processes ) % num_processes;
 
-  if ( elem_idx > size() ) // Too few node IDs to be shared among all MPI processes.
+  if ( elem_idx > size() )  // Too few node IDs to be shared among all MPI processes.
   {
-    return const_iterator( cp, *this, size(), 1, nc_const_iterator::NCIteratorKind::END ); // end iterator
+    return const_iterator( cp, *this, size(), 1, nc_const_iterator::NCIteratorKind::END );  // end iterator
   }
   else
   {
@@ -671,9 +626,9 @@ NodeCollectionPrimitive::thread_local_begin( NodeCollectionPTR cp ) const
   const size_t vp_first_node = kernel().vp_manager.node_id_to_vp( first_ );
   const size_t offset = ( current_vp - vp_first_node + num_vps ) % num_vps;
 
-  if ( offset >= size() ) // Too few node IDs to be shared among all vps.
+  if ( offset >= size() )  // Too few node IDs to be shared among all vps.
   {
-    return nc_const_iterator( cp, *this, size(), 1, nc_const_iterator::NCIteratorKind::END ); // end iterator
+    return nc_const_iterator( cp, *this, size(), 1, nc_const_iterator::NCIteratorKind::END );  // end iterator
   }
   else
   {
@@ -714,7 +669,7 @@ NodeCollectionPrimitive::slice( size_t start, size_t end, size_t stride ) const
   return sliced_nc;
 }
 
-void
+std::ostream&
 NodeCollectionPrimitive::print_me( std::ostream& out ) const
 {
   out << "NodeCollection(";
@@ -724,11 +679,13 @@ NodeCollectionPrimitive::print_me( std::ostream& out ) const
   }
   else
   {
-    std::string metadata = metadata_.get() ? metadata_->get_type() : "None";
+    const std::string metadata = metadata_.get() ? metadata_->get_type() : "None";
     out << "metadata=" << metadata << ", ";
     print_primitive( out );
   }
   out << ")";
+
+  return out;
 }
 
 void
@@ -783,7 +740,7 @@ NodeCollectionComposite::NodeCollectionComposite( const NodeCollectionPrimitive&
   size_t end,
   size_t stride )
   : parts_( { primitive } )
-  , size_( 1 + ( end - start - 1 ) / stride ) // see comment on constructor
+  , size_( 1 + ( end - start - 1 ) / stride )  // see comment on constructor
   , stride_( stride )
   , first_part_( 0 )
   , first_elem_( start )
@@ -840,7 +797,7 @@ NodeCollectionComposite::NodeCollectionComposite( const std::vector< NodeCollect
 
   // Only after sorting can we set up the remaining fields
   last_part_ = n_parts - 1;
-  last_elem_ = parts_[ last_part_ ].size() - 1; // well defined because we allow no empty parts
+  last_elem_ = parts_[ last_part_ ].size() - 1;  // well defined because we allow no empty parts
 
   cumul_abs_size_.resize( n_parts );
   cumul_abs_size_[ 0 ] = parts_[ 0 ].size();
@@ -858,7 +815,7 @@ NodeCollectionComposite::NodeCollectionComposite( const NodeCollectionComposite&
   size_t end,
   size_t stride )
   : parts_( composite.parts_ )
-  , size_( 1 + ( end - start - 1 ) / stride ) // see comment on constructor
+  , size_( 1 + ( end - start - 1 ) / stride )  // see comment on constructor
   , stride_( stride )
   , first_part_( 0 )
   , first_elem_( 0 )
@@ -891,7 +848,7 @@ NodeCollectionComposite::NodeCollectionComposite( const NodeCollectionComposite&
     last_part_ = first_part_;
     last_elem_ = first_elem_;
 
-    cumul_abs_size_[ first_part_ ] = parts_[ first_part_ ].size(); // absolute size of the one valid part
+    cumul_abs_size_[ first_part_ ] = parts_[ first_part_ ].size();  // absolute size of the one valid part
     first_in_part_[ first_part_ ] = first_elem_;
   }
   else
@@ -965,7 +922,7 @@ NodeCollectionComposite::operator+( NodeCollectionPTR rhs ) const
   }
 
   auto const* const rhs_ptr = dynamic_cast< NodeCollectionPrimitive const* >( rhs.get() );
-  if ( rhs_ptr ) // if rhs is Primitive
+  if ( rhs_ptr )  // if rhs is Primitive
   {
     // check primitives in the composite for overlap
     for ( auto part_it = parts_.begin(); part_it < parts_.end(); ++part_it )
@@ -977,7 +934,7 @@ NodeCollectionComposite::operator+( NodeCollectionPTR rhs ) const
     }
     return NodeCollectionPTR( *this + *rhs_ptr );
   }
-  else // rhs is Composite
+  else  // rhs is Composite
   {
     auto const* const rhs_ptr = dynamic_cast< NodeCollectionComposite const* >( rhs.get() );
     assert( rhs_ptr );
@@ -1063,14 +1020,14 @@ NodeCollectionComposite::operator[]( const size_t i ) const
     // Composite is not sliced, we can do a more efficient search.
     // TODO: Is this actually more efficient?
     size_t tot_prev_node_ids = 0;
-    for ( const auto& part : parts_ ) // iterate over NodeCollections
+    for ( const auto& part : parts_ )  // iterate over NodeCollections
     {
-      if ( tot_prev_node_ids + part.size() > i ) // is i in current NodeCollection?
+      if ( tot_prev_node_ids + part.size() > i )  // is i in current NodeCollection?
       {
-        size_t local_i = i - tot_prev_node_ids; // get local i
+        size_t local_i = i - tot_prev_node_ids;  // get local i
         return part[ local_i ];
       }
-      else // i is not in current NodeCollection
+      else  // i is not in current NodeCollection
       {
         tot_prev_node_ids += part.size();
       }
@@ -1092,7 +1049,7 @@ NodeCollectionComposite::operator==( NodeCollectionPTR rhs ) const
     return false;
   }
   auto rhs_nc = rhs_ptr->parts_.begin();
-  for ( auto lhs_nc = parts_.begin(); lhs_nc < parts_.end(); ++lhs_nc, ++rhs_nc ) // iterate over NodeCollections
+  for ( auto lhs_nc = parts_.begin(); lhs_nc < parts_.end(); ++lhs_nc, ++rhs_nc )  // iterate over NodeCollections
   {
     if ( not( ( *lhs_nc ) == ( *rhs_nc ) ) )
     {
@@ -1278,9 +1235,9 @@ NodeCollectionComposite::slice( size_t start, size_t end, size_t stride ) const
 void
 NodeCollectionComposite::merge_parts_( std::vector< NodeCollectionPrimitive >& parts ) const
 {
-  bool did_merge = true; // initialize to enter the while loop
+  bool did_merge = true;  // initialize to enter the while loop
   size_t last_i = 0;
-  while ( did_merge ) // if parts is changed, it has to be checked again
+  while ( did_merge )  // if parts is changed, it has to be checked again
   {
     did_merge = false;
     for ( size_t i = last_i; i < parts.size() - 1; ++i )
@@ -1385,12 +1342,26 @@ NodeCollectionComposite::has_proxies() const
     parts_.begin(), parts_.end(), []( const NodeCollectionPrimitive& prim ) { return prim.has_proxies(); } );
 }
 
-void
+bool
+NodeCollectionComposite::all_connect_as_neurons() const
+{
+  return std::all_of(
+    parts_.begin(), parts_.end(), []( const NodeCollectionPrimitive& prim ) { return prim.all_connect_as_neurons(); } );
+}
+
+bool
+NodeCollectionComposite::all_connect_as_devices() const
+{
+  return std::all_of(
+    parts_.begin(), parts_.end(), []( const NodeCollectionPrimitive& prim ) { return prim.all_connect_as_devices(); } );
+}
+
+std::ostream&
 NodeCollectionComposite::print_me( std::ostream& out ) const
 {
   std::string metadata = parts_[ 0 ].get_metadata().get() ? parts_[ 0 ].get_metadata()->get_type() : "None";
-  std::string nc = "NodeCollection(";
-  std::string space( nc.size(), ' ' );
+  std::string nc_str = "NodeCollection(";
+  std::string space( nc_str.size(), ' ' );
 
   if ( is_sliced_ )
   {
@@ -1404,13 +1375,13 @@ NodeCollectionComposite::print_me( std::ostream& out ) const
 
     std::vector< std::string > string_vector;
 
-    out << nc << "metadata=" << metadata << ",";
+    out << nc_str << "metadata=" << metadata << ",";
 
     const auto end_it = end();
     for ( nc_const_iterator it = begin(); it < end_it; ++it )
     {
       std::tie( current_part, current_offset ) = it.get_part_offset();
-      if ( current_part != previous_part ) // New primitive
+      if ( current_part != previous_part )  // New primitive
       {
         if ( it > begin() )
         {
@@ -1463,7 +1434,7 @@ NodeCollectionComposite::print_me( std::ostream& out ) const
   else
   {
     // Unsliced Composite NodeCollection
-    out << nc << "metadata=" << metadata << ",";
+    out << nc_str << "metadata=" << metadata << ",";
     for ( auto it = parts_.begin(); it < parts_.end(); ++it )
     {
       if ( it == parts_.end() - 1 )
@@ -1480,6 +1451,8 @@ NodeCollectionComposite::print_me( std::ostream& out ) const
     }
   }
   out << ")";
+
+  return out;
 }
 
-} // namespace nest
+}  // namespace nest

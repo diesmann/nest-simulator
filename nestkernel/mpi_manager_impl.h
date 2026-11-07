@@ -35,8 +35,11 @@
 // Includes from nestkernel:
 #include "kernel_manager.h"
 
+namespace nest
+{
+
 inline size_t
-nest::MPIManager::get_process_id_of_vp( const size_t vp ) const
+MPIManager::get_process_id_of_vp( const size_t vp ) const
 {
   return vp % num_processes_;
 }
@@ -44,11 +47,7 @@ nest::MPIManager::get_process_id_of_vp( const size_t vp ) const
 #ifdef HAVE_MPI
 
 // Variable to hold the MPI communicator to use.
-#ifdef HAVE_MUSIC
-extern MPI::Intracomm comm;
-#else  /* #ifdef HAVE_MUSIC */
 extern MPI_Comm comm;
-#endif /* #ifdef HAVE_MUSIC */
 
 template < typename T >
 struct MPI_Type
@@ -58,7 +57,7 @@ struct MPI_Type
 
 template < typename T >
 void
-nest::MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
+MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
   std::vector< T >& recv_buffer,
   std::vector< int >& displacements,
   std::vector< int >& recv_counts )
@@ -75,20 +74,22 @@ nest::MPIManager::communicate_Allgatherv( std::vector< T >& send_buffer,
 }
 
 inline size_t
-nest::MPIManager::get_process_id_of_node_id( const size_t node_id ) const
+MPIManager::get_process_id_of_node_id( const size_t node_id ) const
 {
   return node_id % kernel().vp_manager.get_num_virtual_processes() % num_processes_;
 }
 
-#else // HAVE_MPI
+#else  // HAVE_MPI
 
 
 inline size_t
-nest::MPIManager::get_process_id_of_node_id( const size_t ) const
+MPIManager::get_process_id_of_node_id( const size_t ) const
 {
   return 0;
 }
 
 #endif /* HAVE_MPI */
+
+}  // namespace nest
 
 #endif /* MPI_MANAGER_IMPL_H */

@@ -31,21 +31,21 @@
 #include "nest_names.h"
 #include "node.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Default constructor defining default parameters
  * ---------------------------------------------------------------- */
 
-nest::Device::Parameters_::Parameters_()
+Device::Parameters_::Parameters_()
   : origin_( Time::step( 0 ) )
   , start_( Time::step( 0 ) )
   , stop_( Time::pos_inf() )
 {
 }
 
-nest::Device::Parameters_::Parameters_( const Parameters_& p )
+Device::Parameters_::Parameters_( const Parameters_& p )
   : origin_( p.origin_ )
   , start_( p.start_ )
   , stop_( p.stop_ )
@@ -58,8 +58,8 @@ nest::Device::Parameters_::Parameters_( const Parameters_& p )
   stop_.calibrate();
 }
 
-nest::Device::Parameters_&
-nest::Device::Parameters_::operator=( const Parameters_& p )
+Device::Parameters_&
+Device::Parameters_::operator=( const Parameters_& p )
 {
   origin_ = p.origin_;
   start_ = p.start_;
@@ -74,15 +74,15 @@ nest::Device::Parameters_::operator=( const Parameters_& p )
  * ---------------------------------------------------------------- */
 
 void
-nest::Device::Parameters_::get( DictionaryDatum& d ) const
+Device::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::origin ] = origin_.get_ms();
-  ( *d )[ names::start ] = start_.get_ms();
-  ( *d )[ names::stop ] = stop_.get_ms();
+  d[ names::origin ] = origin_.get_ms();
+  d[ names::start ] = start_.get_ms();
+  d[ names::stop ] = stop_.get_ms();
 }
 
 void
-nest::Device::Parameters_::update_( const DictionaryDatum& d, const Name& name, Time& value )
+Device::Parameters_::update_( const Dictionary& d, const std::string& name, Time& value )
 {
   // We cannot update the Time values directly, since updateValue()
   // doesn't support Time objects. We thus read the value in ms into
@@ -93,20 +93,19 @@ nest::Device::Parameters_::update_( const DictionaryDatum& d, const Name& name, 
   // or be infinite. Infinite values are handled gracefully.
 
   double val;
-  if ( updateValue< double >( d, name, val ) )
+  if ( d.update_value( name, val ) )
   {
     const Time t = Time::ms( val );
     if ( t.is_finite() and not t.is_grid_time() )
     {
-      throw BadProperty( name.toString() +  " must be a multiple "
-                                 "of the simulation resolution." );
+      throw BadProperty( name + " must be a multiple of the simulation resolution." );
     }
     value = t;
   }
 }
 
 void
-nest::Device::Parameters_::set( const DictionaryDatum& d )
+Device::Parameters_::set( const Dictionary& d )
 {
   update_( d, names::origin, origin_ );
   update_( d, names::start, start_ );
@@ -123,12 +122,12 @@ nest::Device::Parameters_::set( const DictionaryDatum& d )
  * Default and copy constructor for device
  * ---------------------------------------------------------------- */
 
-nest::Device::Device()
+Device::Device()
   : P_()
 {
 }
 
-nest::Device::Device( const Device& n )
+Device::Device( const Device& n )
   : P_( n.P_ )
 {
 }
@@ -139,7 +138,7 @@ nest::Device::Device( const Device& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::Device::pre_run_hook()
+Device::pre_run_hook()
 {
   // We do not need to recalibrate time objects, since they are
   // recalibrated on instance construction and resolution cannot
@@ -149,3 +148,5 @@ nest::Device::pre_run_hook()
   V_.t_min_ = ( P_.origin_ + P_.start_ ).get_steps();
   V_.t_max_ = ( P_.origin_ + P_.stop_ ).get_steps();
 }
+
+}  // namespace nest

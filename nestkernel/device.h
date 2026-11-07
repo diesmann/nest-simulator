@@ -29,8 +29,6 @@
 #include "nest_types.h"
 #include "node.h"
 
-// Includes from sli:
-#include "dictdatum.h"
 
 namespace nest
 {
@@ -82,8 +80,8 @@ public:
   /** Set internal variables before calls to SimulationManager::run() */
   virtual void pre_run_hook();
 
-  virtual void get_status( DictionaryDatum& ) const;
-  virtual void set_status( const DictionaryDatum& );
+  virtual void get_status( Dictionary& ) const;
+  virtual void set_status( const Dictionary& );
 
   /**
    *  Returns true if the device is active at the given time stamp.
@@ -126,19 +124,19 @@ private:
     //!< Stop time, relative to origin. Defaults to "infinity".
     Time stop_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
     //! Copy and recalibrate parameter set
     Parameters_( const Parameters_& );
 
     Parameters_& operator=( const Parameters_& );
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
-    void set( const DictionaryDatum& ); //!< Set values from dictionary
+    void get( Dictionary& ) const;  //!< Store current values in dictionary
+    void set( const Dictionary& );  //!< Set values from dictionary
 
   private:
     //! Update given Time parameter including error checking
-    static void update_( const DictionaryDatum&, const Name&, Time& );
+    static void update_( const Dictionary&, const std::string&, Time& );
   };
 
 
@@ -177,52 +175,52 @@ private:
   Variables_ V_;
 };
 
-} // namespace
-
 inline void
-nest::Device::get_status( DictionaryDatum& d ) const
+Device::get_status( Dictionary& d ) const
 {
   P_.get( d );
 }
 
 inline void
-nest::Device::set_status( const DictionaryDatum& d )
+Device::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d );         // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d );          // throws if BadProperty
 
   // if we get here, temporaries contain consistent set of properties
   P_ = ptmp;
 }
 
-inline nest::Time const&
-nest::Device::get_origin() const
+inline Time const&
+Device::get_origin() const
 {
   return P_.origin_;
 }
 
-inline nest::Time const&
-nest::Device::get_start() const
+inline Time const&
+Device::get_start() const
 {
   return P_.start_;
 }
 
-inline nest::Time const&
-nest::Device::get_stop() const
+inline Time const&
+Device::get_stop() const
 {
   return P_.stop_;
 }
 
 inline long
-nest::Device::get_t_min_() const
+Device::get_t_min_() const
 {
   return V_.t_min_;
 }
 
 inline long
-nest::Device::get_t_max_() const
+Device::get_t_max_() const
 {
   return V_.t_max_;
 }
+
+}  // namespace nest
 
 #endif /* DEVICE_H */

@@ -28,9 +28,6 @@
 #include "device_node.h"
 #include "nest_types.h"
 
-// Includes from sli:
-#include "dictutils.h"
-
 // Includes from libnestutil:
 #include "compose.hpp"
 
@@ -41,6 +38,14 @@ namespace nest
 {
 
 /* BeginUserDocs: NOINDEX
+
+Short description
++++++++++++++++++
+
+Stimulation device
+
+Description
++++++++++++
 
 All stimulation devices share the parameters ``start`` and ``stop``,
 which control the stimulation period. The property ``origin`` is a
@@ -159,11 +164,16 @@ public:
    * @see class comment for details.
    */
   bool is_active( const Time& ) const override;
-  void get_status( DictionaryDatum& d ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& d ) const override;
+  void set_status( const Dictionary& ) override;
 
   bool has_proxies() const override;
-  Name get_element_type() const override;
+
+  /**
+   * @note Mark as local_receiver() so multimeter is properly identified as device.
+   */
+  bool local_receiver() const override;
+  std::string get_element_type() const override;
 
   using Device::init_buffers;
   using Device::init_state;
@@ -200,14 +210,14 @@ protected:
 
   struct Parameters_
   {
-    std::string label_;    //!< A user-defined label for symbolic device names.
-    Name stimulus_source_; //!< Origin of the stimulation signal.
+    std::string label_;            //!< A user-defined label for symbolic device names.
+    std::string stimulus_source_;  //!< Origin of the stimulation signal.
 
     Parameters_();
     Parameters_( const Parameters_& ) = default;
     Parameters_& operator=( const Parameters_& ) = default;
-    void get( DictionaryDatum& ) const;
-    void set( const DictionaryDatum& );
+    void get( Dictionary& ) const;
+    void set( const Dictionary& );
   } P_;
 
 private:
@@ -220,10 +230,10 @@ private:
    */
   synindex first_syn_id_;
 
-  DictionaryDatum backend_params_;
+  Dictionary backend_params_;
 };
 
-inline Name
+inline std::string
 StimulationDevice::get_element_type() const
 {
   return names::stimulator;
@@ -235,6 +245,12 @@ StimulationDevice::has_proxies() const
   return false;
 }
 
-} // namespace nest
+inline bool
+StimulationDevice::local_receiver() const
+{
+  return true;
+}
+
+}  // namespace nest
 
 #endif /* #ifndef STIMULATION_DEVICE_H */

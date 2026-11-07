@@ -22,43 +22,44 @@
 #include "cm_compartmentcurrents.h"
 
 
-nest::Na::Na( double v_comp )
+namespace nest
+{
+Na::Na( double v_comp )
   // state variables
   : m_Na_( 0.0 )
   , h_Na_( 0.0 )
   // parameters
-  , gbar_Na_( 0.0 ) // uS
-  , e_Na_( 50. )    // mV
+  , gbar_Na_( 0.0 )  // uS
+  , e_Na_( 50. )     // mV
   , q10_( 1. / 3.21 )
 {
   // some default initialization
   init_statevars( v_comp );
 }
-
-nest::Na::Na( double v_comp, const DictionaryDatum& channel_params )
+Na::Na( double v_comp, const Dictionary& channel_params )
   // state variables
   : m_Na_( 0.0 )
   , h_Na_( 0.0 )
   // parameters
-  , gbar_Na_( 0.0 ) // uS
-  , e_Na_( 50. )    // mV
+  , gbar_Na_( 0.0 )  // uS
+  , e_Na_( 50. )     // mV
   , q10_( 1. / 3.21 )
 {
   // update sodium channel parameters
-  if ( channel_params->known( "gbar_Na" ) )
+  if ( channel_params.known( "gbar_Na" ) )
   {
-    gbar_Na_ = getValue< double >( channel_params, "gbar_Na" );
+    gbar_Na_ = channel_params.get< double >( "gbar_Na" );
   }
-  if ( channel_params->known( "e_Na" ) )
+  if ( channel_params.known( "e_Na" ) )
   {
-    e_Na_ = getValue< double >( channel_params, "e_Na" );
+    e_Na_ = channel_params.get< double >( "e_Na" );
   }
 
   init_statevars( v_comp );
 }
 
 void
-nest::Na::init_statevars( double v_init )
+Na::init_statevars( double v_init )
 {
   std::pair< double, double > sv( 0., 0. );
 
@@ -69,18 +70,18 @@ nest::Na::init_statevars( double v_init )
 }
 
 void
-nest::Na::append_recordables( std::map< Name, double* >* recordables, const long compartment_idx )
+Na::append_recordables( std::map< std::string, double* >* recordables, const long compartment_idx )
 {
-  ( *recordables )[ Name( "m_Na_" + std::to_string( compartment_idx ) ) ] = &m_Na_;
-  ( *recordables )[ Name( "h_Na_" + std::to_string( compartment_idx ) ) ] = &h_Na_;
+  ( *recordables )[ "m_Na_" + std::to_string( compartment_idx ) ] = &m_Na_;
+  ( *recordables )[ "h_Na_" + std::to_string( compartment_idx ) ] = &h_Na_;
 }
 
 std::pair< double, double >
-nest::Na::compute_statevar_m( const double v_comp )
+Na::compute_statevar_m( const double v_comp )
 {
   /**
    * Channel rate equations from the following .mod file:
-   * https://senselab.med.yale.edu/ModelDB/ShowModel?model=140828&file=/Branco_2010/mod.files/na.mod#tabs-2
+   * https://modeldb.science/140828
    */
   // auxiliary variables
   double v_comp_plus_35 = v_comp + 35.013;
@@ -111,11 +112,11 @@ nest::Na::compute_statevar_m( const double v_comp )
 }
 
 std::pair< double, double >
-nest::Na::compute_statevar_h( const double v_comp )
+Na::compute_statevar_h( const double v_comp )
 {
   /**
    * Channel rate equations from the following .mod file:
-   * https://senselab.med.yale.edu/ModelDB/ShowModel?model=140828&file=/Branco_2010/mod.files/na.mod#tabs-2
+   * https://modeldb.science/140828?tab=2&file=Branco_2010/mod.files/na.mod
    */
   double v_comp_plus_50 = v_comp + 50.013;
   double v_comp_plus_75 = v_comp + 75.013;
@@ -148,7 +149,7 @@ nest::Na::compute_statevar_h( const double v_comp )
 }
 
 std::pair< double, double >
-nest::Na::f_numstep( const double v_comp )
+Na::f_numstep( const double v_comp )
 {
   const double dt = Time::get_resolution().get_ms();
   double g_val = 0., i_val = 0.;
@@ -187,33 +188,33 @@ nest::Na::f_numstep( const double v_comp )
 }
 
 
-nest::K::K( double v_comp )
+K::K( double v_comp )
   // state variables
   : n_K_( 0.0 )
   // parameters
-  , gbar_K_( 0.0 ) // uS
-  , e_K_( -85. )   // mV
+  , gbar_K_( 0.0 )  // uS
+  , e_K_( -85. )    // mV
   , q10_( 1. / 3.21 )
 {
   init_statevars( v_comp );
 }
 
-nest::K::K( double v_comp, const DictionaryDatum& channel_params )
+K::K( double v_comp, const Dictionary& channel_params )
   // state variables
   : n_K_( 0.0 )
   // parameters
-  , gbar_K_( 0.0 ) // uS
-  , e_K_( -85. )   // mV
+  , gbar_K_( 0.0 )  // uS
+  , e_K_( -85. )    // mV
   , q10_( 1. / 3.21 )
 {
   // update potassium channel parameters
-  if ( channel_params->known( "gbar_K" ) )
+  if ( channel_params.known( "gbar_K" ) )
   {
-    gbar_K_ = getValue< double >( channel_params, "gbar_K" );
+    gbar_K_ = channel_params.get< double >( "gbar_K" );
   }
-  if ( channel_params->known( "e_Na" ) )
+  if ( channel_params.known( "e_Na" ) )
   {
-    e_K_ = getValue< double >( channel_params, "e_K" );
+    e_K_ = channel_params.get< double >( "e_K" );
   }
 
   // initialize the state variables
@@ -221,7 +222,7 @@ nest::K::K( double v_comp, const DictionaryDatum& channel_params )
 }
 
 void
-nest::K::init_statevars( double v_init )
+K::init_statevars( double v_init )
 {
   std::pair< double, double > sv( 0., 0. );
   sv = compute_statevar_n( v_init );
@@ -229,17 +230,17 @@ nest::K::init_statevars( double v_init )
 }
 
 void
-nest::K::append_recordables( std::map< Name, double* >* recordables, const long compartment_idx )
+K::append_recordables( std::map< std::string, double* >* recordables, const long compartment_idx )
 {
-  ( *recordables )[ Name( "n_K_" + std::to_string( compartment_idx ) ) ] = &n_K_;
+  ( *recordables )[ "n_K_" + std::to_string( compartment_idx ) ] = &n_K_;
 }
 
 std::pair< double, double >
-nest::K::compute_statevar_n( const double v_comp )
+K::compute_statevar_n( const double v_comp )
 {
   /**
    * Channel rate equations from the following .mod file:
-   * https://senselab.med.yale.edu/ModelDB/ShowModel?model=140828&file=/Branco_2010/mod.files/kv.mod#tabs-2
+   * https://modeldb.science/140828
    */
   // auxiliary variables
   double v_comp_minus_25 = v_comp - 25.;
@@ -271,7 +272,7 @@ nest::K::compute_statevar_n( const double v_comp )
 }
 
 std::pair< double, double >
-nest::K::f_numstep( const double v_comp )
+K::f_numstep( const double v_comp )
 {
   const double dt = Time::get_resolution().get_ms();
   double g_val = 0., i_val = 0.;
@@ -300,14 +301,14 @@ nest::K::f_numstep( const double v_comp )
 }
 
 
-nest::AMPA::AMPA( const long syn_index )
+AMPA::AMPA( const long syn_index )
   // initialization state variables
   : g_r_AMPA_( 0.0 )
   , g_d_AMPA_( 0.0 )
   // initialization parameters
-  , e_rev_( 0.0 ) // mV
-  , tau_r_( 0.2 ) // ms
-  , tau_d_( 3.0 ) // ms
+  , e_rev_( 0.0 )  // mV
+  , tau_r_( 0.2 )  // ms
+  , tau_d_( 3.0 )  // ms
   // will be recomputed based on parameters
   , g_norm_( 1.0 )
   , prop_r_( 0.0 )
@@ -319,14 +320,14 @@ nest::AMPA::AMPA( const long syn_index )
   g_norm_ = 1. / ( -std::exp( -tp / tau_r_ ) + std::exp( -tp / tau_d_ ) );
 }
 
-nest::AMPA::AMPA( const long syn_index, const DictionaryDatum& receptor_params )
+AMPA::AMPA( const long syn_index, const Dictionary& receptor_params )
   // initialization state variables
   : g_r_AMPA_( 0.0 )
   , g_d_AMPA_( 0.0 )
   // initialization parameters
-  , e_rev_( 0.0 ) // mV
-  , tau_r_( 0.2 ) // ms
-  , tau_d_( 3.0 ) // ms
+  , e_rev_( 0.0 )  // mV
+  , tau_r_( 0.2 )  // ms
+  , tau_d_( 3.0 )  // ms
   // will be recomputed based on parameters
   , g_norm_( 1.0 )
   , prop_r_( 0.0 )
@@ -335,17 +336,17 @@ nest::AMPA::AMPA( const long syn_index, const DictionaryDatum& receptor_params )
   syn_idx = syn_index;
 
   // update AMPA receptor parameters
-  if ( receptor_params->known( "e_AMPA" ) )
+  if ( receptor_params.known( "e_AMPA" ) )
   {
-    e_rev_ = getValue< double >( receptor_params, "e_AMPA" );
+    e_rev_ = receptor_params.get< double >( "e_AMPA" );
   }
-  if ( receptor_params->known( "tau_r_AMPA" ) )
+  if ( receptor_params.known( "tau_r_AMPA" ) )
   {
-    tau_r_ = getValue< double >( receptor_params, "tau_r_AMPA" );
+    tau_r_ = receptor_params.get< double >( "tau_r_AMPA" );
   }
-  if ( receptor_params->known( "tau_d_AMPA" ) )
+  if ( receptor_params.known( "tau_d_AMPA" ) )
   {
-    tau_d_ = getValue< double >( receptor_params, "tau_d_AMPA" );
+    tau_d_ = receptor_params.get< double >( "tau_d_AMPA" );
   }
 
   double tp = ( tau_r_ * tau_d_ ) / ( tau_d_ - tau_r_ ) * std::log( tau_d_ / tau_r_ );
@@ -353,14 +354,14 @@ nest::AMPA::AMPA( const long syn_index, const DictionaryDatum& receptor_params )
 }
 
 void
-nest::AMPA::append_recordables( std::map< Name, double* >* recordables )
+AMPA::append_recordables( std::map< std::string, double* >* recordables )
 {
-  ( *recordables )[ Name( "g_r_AMPA_" + std::to_string( syn_idx ) ) ] = &g_r_AMPA_;
-  ( *recordables )[ Name( "g_d_AMPA_" + std::to_string( syn_idx ) ) ] = &g_d_AMPA_;
+  ( *recordables )[ "g_r_AMPA_" + std::to_string( syn_idx ) ] = &g_r_AMPA_;
+  ( *recordables )[ "g_d_AMPA_" + std::to_string( syn_idx ) ] = &g_d_AMPA_;
 }
 
 std::pair< double, double >
-nest::AMPA::f_numstep( const double v_comp, const long lag )
+AMPA::f_numstep( const double v_comp, const long lag )
 {
   // update conductance
   g_r_AMPA_ *= prop_r_;
@@ -387,14 +388,14 @@ nest::AMPA::f_numstep( const double v_comp, const long lag )
 }
 
 
-nest::GABA::GABA( const long syn_index )
+GABA::GABA( const long syn_index )
   // initialization state variables
   : g_r_GABA_( 0.0 )
   , g_d_GABA_( 0.0 )
   // initialization parameters
-  , e_rev_( -80. ) // mV
-  , tau_r_( 0.2 )  // ms
-  , tau_d_( 10.0 ) // ms
+  , e_rev_( -80. )  // mV
+  , tau_r_( 0.2 )   // ms
+  , tau_d_( 10.0 )  // ms
   // will be recomputed based on parameters
   , g_norm_( 1.0 )
   , prop_r_( 0.0 )
@@ -406,14 +407,14 @@ nest::GABA::GABA( const long syn_index )
   g_norm_ = 1. / ( -std::exp( -tp / tau_r_ ) + std::exp( -tp / tau_d_ ) );
 }
 
-nest::GABA::GABA( const long syn_index, const DictionaryDatum& receptor_params )
+GABA::GABA( const long syn_index, const Dictionary& receptor_params )
   // initialization state variables
   : g_r_GABA_( 0.0 )
   , g_d_GABA_( 0.0 )
   // initialization parameters
-  , e_rev_( -80. ) // mV
-  , tau_r_( 0.2 )  // ms
-  , tau_d_( 10.0 ) // ms
+  , e_rev_( -80. )  // mV
+  , tau_r_( 0.2 )   // ms
+  , tau_d_( 10.0 )  // ms
   // will be recomputed based on parameters
   , g_norm_( 1.0 )
   , prop_r_( 0.0 )
@@ -422,17 +423,17 @@ nest::GABA::GABA( const long syn_index, const DictionaryDatum& receptor_params )
   syn_idx = syn_index;
 
   // update GABA receptor parameters
-  if ( receptor_params->known( "e_GABA" ) )
+  if ( receptor_params.known( "e_GABA" ) )
   {
-    e_rev_ = getValue< double >( receptor_params, "e_GABA" );
+    e_rev_ = receptor_params.get< double >( "e_GABA" );
   }
-  if ( receptor_params->known( "tau_r_GABA" ) )
+  if ( receptor_params.known( "tau_r_GABA" ) )
   {
-    tau_r_ = getValue< double >( receptor_params, "tau_r_GABA" );
+    tau_r_ = receptor_params.get< double >( "tau_r_GABA" );
   }
-  if ( receptor_params->known( "tau_d_GABA" ) )
+  if ( receptor_params.known( "tau_d_GABA" ) )
   {
-    tau_d_ = getValue< double >( receptor_params, "tau_d_GABA" );
+    tau_d_ = receptor_params.get< double >( "tau_d_GABA" );
   }
 
   double tp = ( tau_r_ * tau_d_ ) / ( tau_d_ - tau_r_ ) * std::log( tau_d_ / tau_r_ );
@@ -440,14 +441,14 @@ nest::GABA::GABA( const long syn_index, const DictionaryDatum& receptor_params )
 }
 
 void
-nest::GABA::append_recordables( std::map< Name, double* >* recordables )
+GABA::append_recordables( std::map< std::string, double* >* recordables )
 {
-  ( *recordables )[ Name( "g_r_GABA_" + std::to_string( syn_idx ) ) ] = &g_r_GABA_;
-  ( *recordables )[ Name( "g_d_GABA_" + std::to_string( syn_idx ) ) ] = &g_d_GABA_;
+  ( *recordables )[ "g_r_GABA_" + std::to_string( syn_idx ) ] = &g_r_GABA_;
+  ( *recordables )[ "g_d_GABA_" + std::to_string( syn_idx ) ] = &g_d_GABA_;
 }
 
 std::pair< double, double >
-nest::GABA::f_numstep( const double v_comp, const long lag )
+GABA::f_numstep( const double v_comp, const long lag )
 {
   // update conductance
   g_r_GABA_ *= prop_r_;
@@ -474,14 +475,14 @@ nest::GABA::f_numstep( const double v_comp, const long lag )
 }
 
 
-nest::NMDA::NMDA( const long syn_index )
+NMDA::NMDA( const long syn_index )
   // initialization state variables
   : g_r_NMDA_( 0.0 )
   , g_d_NMDA_( 0.0 )
   // initialization parameters
-  , e_rev_( 0. )   // mV
-  , tau_r_( 0.2 )  // ms
-  , tau_d_( 43.0 ) // ms
+  , e_rev_( 0. )    // mV
+  , tau_r_( 0.2 )   // ms
+  , tau_d_( 43.0 )  // ms
   // will be recomputed based on parameters
   , g_norm_( 1.0 )
   , prop_r_( 0.0 )
@@ -493,7 +494,7 @@ nest::NMDA::NMDA( const long syn_index )
   g_norm_ = 1. / ( -std::exp( -tp / tau_r_ ) + std::exp( -tp / tau_d_ ) );
 }
 
-nest::NMDA::NMDA( const long syn_index, const DictionaryDatum& receptor_params )
+NMDA::NMDA( const long syn_index, const Dictionary& receptor_params )
   // initialization state variables
   : g_r_NMDA_( 0.0 )
   , g_d_NMDA_( 0.0 )
@@ -509,17 +510,17 @@ nest::NMDA::NMDA( const long syn_index, const DictionaryDatum& receptor_params )
   syn_idx = syn_index;
 
   // update NMDA receptor parameters
-  if ( receptor_params->known( "e_NMDA" ) )
+  if ( receptor_params.known( "e_NMDA" ) )
   {
-    e_rev_ = getValue< double >( receptor_params, "e_NMDA" );
+    e_rev_ = receptor_params.get< double >( "e_NMDA" );
   }
-  if ( receptor_params->known( "tau_r_NMDA" ) )
+  if ( receptor_params.known( "tau_r_NMDA" ) )
   {
-    tau_r_ = getValue< double >( receptor_params, "tau_r_NMDA" );
+    tau_r_ = receptor_params.get< double >( "tau_r_NMDA" );
   }
-  if ( receptor_params->known( "tau_d_NMDA" ) )
+  if ( receptor_params.known( "tau_d_NMDA" ) )
   {
-    tau_d_ = getValue< double >( receptor_params, "tau_d_NMDA" );
+    tau_d_ = receptor_params.get< double >( "tau_d_NMDA" );
   }
 
   double tp = ( tau_r_ * tau_d_ ) / ( tau_d_ - tau_r_ ) * std::log( tau_d_ / tau_r_ );
@@ -527,14 +528,14 @@ nest::NMDA::NMDA( const long syn_index, const DictionaryDatum& receptor_params )
 }
 
 void
-nest::NMDA::append_recordables( std::map< Name, double* >* recordables )
+NMDA::append_recordables( std::map< std::string, double* >* recordables )
 {
-  ( *recordables )[ Name( "g_r_NMDA_" + std::to_string( syn_idx ) ) ] = &g_r_NMDA_;
-  ( *recordables )[ Name( "g_d_NMDA_" + std::to_string( syn_idx ) ) ] = &g_d_NMDA_;
+  ( *recordables )[ "g_r_NMDA_" + std::to_string( syn_idx ) ] = &g_r_NMDA_;
+  ( *recordables )[ "g_d_NMDA_" + std::to_string( syn_idx ) ] = &g_d_NMDA_;
 }
 
 std::pair< double, double >
-nest::NMDA::f_numstep( const double v_comp, const long lag )
+NMDA::f_numstep( const double v_comp, const long lag )
 {
   // update conductance
   g_r_NMDA_ *= prop_r_;
@@ -564,18 +565,18 @@ nest::NMDA::f_numstep( const double v_comp, const long lag )
 }
 
 
-nest::AMPA_NMDA::AMPA_NMDA( const long syn_index )
+AMPA_NMDA::AMPA_NMDA( const long syn_index )
   // initialization state variables
   : g_r_AN_AMPA_( 0.0 )
   , g_d_AN_AMPA_( 0.0 )
   , g_r_AN_NMDA_( 0.0 )
   , g_d_AN_NMDA_( 0.0 )
   // initialization parameters
-  , e_rev_( 0. )        // mV
-  , tau_r_AMPA_( 0.2 )  // ms
-  , tau_d_AMPA_( 3.0 )  // ms
-  , tau_r_NMDA_( 0.2 )  // ms
-  , tau_d_NMDA_( 43.0 ) // ms
+  , e_rev_( 0. )         // mV
+  , tau_r_AMPA_( 0.2 )   // ms
+  , tau_d_AMPA_( 3.0 )   // ms
+  , tau_r_NMDA_( 0.2 )   // ms
+  , tau_d_NMDA_( 43.0 )  // ms
   , NMDA_ratio_( 2.0 )
   // will be recomputed based on parameters
   , g_norm_AMPA_( 1.0 )
@@ -595,18 +596,18 @@ nest::AMPA_NMDA::AMPA_NMDA( const long syn_index )
   g_norm_NMDA_ = 1. / ( -std::exp( -tp / tau_r_NMDA_ ) + std::exp( -tp / tau_d_NMDA_ ) );
 }
 
-nest::AMPA_NMDA::AMPA_NMDA( const long syn_index, const DictionaryDatum& receptor_params )
+AMPA_NMDA::AMPA_NMDA( const long syn_index, const Dictionary& receptor_params )
   // initialization state variables
   : g_r_AN_AMPA_( 0.0 )
   , g_d_AN_AMPA_( 0.0 )
   , g_r_AN_NMDA_( 0.0 )
   , g_d_AN_NMDA_( 0.0 )
   // initialization parameters
-  , e_rev_( 0. )        // mV
-  , tau_r_AMPA_( 0.2 )  // ms
-  , tau_d_AMPA_( 3.0 )  // ms
-  , tau_r_NMDA_( 0.2 )  // ms
-  , tau_d_NMDA_( 43.0 ) // ms
+  , e_rev_( 0. )         // mV
+  , tau_r_AMPA_( 0.2 )   // ms
+  , tau_d_AMPA_( 3.0 )   // ms
+  , tau_r_NMDA_( 0.2 )   // ms
+  , tau_d_NMDA_( 43.0 )  // ms
   , NMDA_ratio_( 2.0 )
   // will be recomputed based on parameters
   , g_norm_AMPA_( 1.0 )
@@ -619,29 +620,29 @@ nest::AMPA_NMDA::AMPA_NMDA( const long syn_index, const DictionaryDatum& recepto
   syn_idx = syn_index;
 
   // update AMPA+NMDA receptor parameters
-  if ( receptor_params->known( "e_AMPA_NMDA" ) )
+  if ( receptor_params.known( "e_AMPA_NMDA" ) )
   {
-    e_rev_ = getValue< double >( receptor_params, "e_AMPA_NMDA" );
+    e_rev_ = receptor_params.get< double >( "e_AMPA_NMDA" );
   }
-  if ( receptor_params->known( "tau_r_AMPA" ) )
+  if ( receptor_params.known( "tau_r_AMPA" ) )
   {
-    tau_r_AMPA_ = getValue< double >( receptor_params, "tau_r_AMPA" );
+    tau_r_AMPA_ = receptor_params.get< double >( "tau_r_AMPA" );
   }
-  if ( receptor_params->known( "tau_d_AMPA" ) )
+  if ( receptor_params.known( "tau_d_AMPA" ) )
   {
-    tau_d_AMPA_ = getValue< double >( receptor_params, "tau_d_AMPA" );
+    tau_d_AMPA_ = receptor_params.get< double >( "tau_d_AMPA" );
   }
-  if ( receptor_params->known( "tau_r_NMDA" ) )
+  if ( receptor_params.known( "tau_r_NMDA" ) )
   {
-    tau_r_NMDA_ = getValue< double >( receptor_params, "tau_r_NMDA" );
+    tau_r_NMDA_ = receptor_params.get< double >( "tau_r_NMDA" );
   }
-  if ( receptor_params->known( "tau_d_NMDA" ) )
+  if ( receptor_params.known( "tau_d_NMDA" ) )
   {
-    tau_d_NMDA_ = getValue< double >( receptor_params, "tau_d_NMDA" );
+    tau_d_NMDA_ = receptor_params.get< double >( "tau_d_NMDA" );
   }
-  if ( receptor_params->known( "NMDA_ratio" ) )
+  if ( receptor_params.known( "NMDA_ratio" ) )
   {
-    NMDA_ratio_ = getValue< double >( receptor_params, "NMDA_ratio" );
+    NMDA_ratio_ = receptor_params.get< double >( "NMDA_ratio" );
   }
 
   // AMPA normalization constant
@@ -653,16 +654,16 @@ nest::AMPA_NMDA::AMPA_NMDA( const long syn_index, const DictionaryDatum& recepto
 }
 
 void
-nest::AMPA_NMDA::append_recordables( std::map< Name, double* >* recordables )
+AMPA_NMDA::append_recordables( std::map< std::string, double* >* recordables )
 {
-  ( *recordables )[ Name( "g_r_AN_AMPA_" + std::to_string( syn_idx ) ) ] = &g_r_AN_AMPA_;
-  ( *recordables )[ Name( "g_d_AN_AMPA_" + std::to_string( syn_idx ) ) ] = &g_d_AN_AMPA_;
-  ( *recordables )[ Name( "g_r_AN_NMDA_" + std::to_string( syn_idx ) ) ] = &g_r_AN_NMDA_;
-  ( *recordables )[ Name( "g_d_AN_NMDA_" + std::to_string( syn_idx ) ) ] = &g_d_AN_NMDA_;
+  ( *recordables )[ "g_r_AN_AMPA_" + std::to_string( syn_idx ) ] = &g_r_AN_AMPA_;
+  ( *recordables )[ "g_d_AN_AMPA_" + std::to_string( syn_idx ) ] = &g_d_AN_AMPA_;
+  ( *recordables )[ "g_r_AN_NMDA_" + std::to_string( syn_idx ) ] = &g_r_AN_NMDA_;
+  ( *recordables )[ "g_d_AN_NMDA_" + std::to_string( syn_idx ) ] = &g_d_AN_NMDA_;
 }
 
 std::pair< double, double >
-nest::AMPA_NMDA::f_numstep( const double v_comp, const long lag )
+AMPA_NMDA::f_numstep( const double v_comp, const long lag )
 {
   // update conductance
   g_r_AN_AMPA_ *= prop_r_AMPA_;
@@ -700,14 +701,16 @@ nest::AMPA_NMDA::f_numstep( const double v_comp, const long lag )
 }
 
 
-nest::CompartmentCurrents::CompartmentCurrents( double v_comp )
+CompartmentCurrents::CompartmentCurrents( double v_comp )
   : Na_chan_( v_comp )
   , K_chan_( v_comp )
 {
 }
 
-nest::CompartmentCurrents::CompartmentCurrents( double v_comp, const DictionaryDatum& channel_params )
+CompartmentCurrents::CompartmentCurrents( double v_comp, const Dictionary& channel_params )
   : Na_chan_( v_comp, channel_params )
   , K_chan_( v_comp, channel_params )
 {
 }
+
+}  // namespace nest

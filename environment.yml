@@ -3,7 +3,7 @@
 # This file specifies a mamba environment for those who would
 # like to compile NEST or build NEST documentation themselves.
 # If you just want to execute NEST, you should install NEST
-# directly as described in https://www.nest-simulator.org/installation.
+# directly as described in https://www.nest-simulator.org/documentation/installation.
 #
 # The environment specification below is comprehensive: it includes
 # all packages required to build and run NEST with OpenMP and MPI
@@ -15,7 +15,7 @@
 # separate sections below so you can remove them if you would like a
 # leaner environment.
 #
-# NOTE: libneurosim, MUSIC and SIONLib are not included in this environment.
+# NOTE: MUSIC and SIONLib are not included in this environment.
 #
 # To create an environment from this file, run
 #
@@ -36,11 +36,11 @@ dependencies:
   - boost >= 1.69
   - gsl >= 1.11
   - libtool
-  - readline
   - hdf5
   - cppcheck
   - doxygen
   - graphviz
+  - pandoc
 
   # mpi4py must be installed by mamba in order to automatically find the path
   # to OpenMPI installed by mamba. Note that mpi4py also is included in
@@ -58,7 +58,4 @@ dependencies:
     - -r requirements_testing.txt
 
     # To build NEST documentation
-    - -r requirements_docs.txt
-
-    # To run NEST Server
-    - -r requirements_nest_server.txt
+    - -r doc/requirements.txt

@@ -37,17 +37,15 @@
 #include "nest_impl.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Recordables map
  * ---------------------------------------------------------------- */
 
-nest::RecordablesMap< nest::iaf_chxk_2008 > nest::iaf_chxk_2008::recordablesMap_;
+RecordablesMap< iaf_chxk_2008 > iaf_chxk_2008::recordablesMap_;
 
-namespace nest // template specialization must be placed in namespace
-{
 void
 register_iaf_chxk_2008( const std::string& name )
 {
@@ -71,21 +69,20 @@ RecordablesMap< iaf_chxk_2008 >::create()
   insert_( names::I_syn_in, &iaf_chxk_2008::get_I_syn_inh_ );
   insert_( names::I_ahp, &iaf_chxk_2008::get_I_ahp_ );
 }
-}
 
 /* ----------------------------------------------------------------
  * Iteration function
  * ---------------------------------------------------------------- */
 
 extern "C" inline int
-nest::iaf_chxk_2008_dynamics( double, const double y[], double f[], void* pnode )
+iaf_chxk_2008_dynamics( double, const double y[], double f[], void* pnode )
 {
   // a shorthand
-  typedef nest::iaf_chxk_2008::State_ S;
+  typedef iaf_chxk_2008::State_ S;
 
   // get access to node so we can almost work as in a member function
   assert( pnode );
-  const nest::iaf_chxk_2008& node = *( reinterpret_cast< nest::iaf_chxk_2008* >( pnode ) );
+  const iaf_chxk_2008& node = *( reinterpret_cast< iaf_chxk_2008* >( pnode ) );
 
   // y[] here is---and must be---the state vector supplied by the integrator,
   // not the state vector in the node, node.S_.y[].
@@ -119,38 +116,38 @@ nest::iaf_chxk_2008_dynamics( double, const double y[], double f[], void* pnode 
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::iaf_chxk_2008::Parameters_::Parameters_()
-  : // Default values chosen based on values found in
+iaf_chxk_2008::Parameters_::Parameters_()
+  :  // Default values chosen based on values found in
   // Alex Casti's simulator
-  V_th( -45.0 )     // mV
-  , g_L( 100.0 )    // nS
-  , C_m( 1000.0 )   // pF
-  , E_ex( 20.0 )    // mV
-  , E_in( -90.0 )   // mV
-  , E_L( -60.0 )    // mV
-  , tau_synE( 1.0 ) // ms
-  , tau_synI( 1.0 ) // ms
-  , I_e( 0.0 )      // pA
-  , tau_ahp( 0.5 )  // ms
-  , g_ahp( 443.8 )  // nS
-  , E_ahp( -95.0 )  // mV
+  V_th( -45.0 )      // mV
+  , g_L( 100.0 )     // nS
+  , C_m( 1000.0 )    // pF
+  , E_ex( 20.0 )     // mV
+  , E_in( -90.0 )    // mV
+  , E_L( -60.0 )     // mV
+  , tau_synE( 1.0 )  // ms
+  , tau_synI( 1.0 )  // ms
+  , I_e( 0.0 )       // pA
+  , tau_ahp( 0.5 )   // ms
+  , g_ahp( 443.8 )   // nS
+  , E_ahp( -95.0 )   // mV
   , ahp_bug( false )
 
 {
   recordablesMap_.create();
 }
 
-nest::iaf_chxk_2008::State_::State_( const Parameters_& p )
+iaf_chxk_2008::State_::State_( const Parameters_& p )
   : r( 0 )
 {
-  y[ V_M ] = p.E_L; // initialize to reversal potential
+  y[ V_M ] = p.E_L;  // initialize to reversal potential
   for ( size_t i = DG_EXC; i < STATE_VEC_SIZE; ++i )
   {
     y[ i ] = 0;
   }
 }
 
-nest::iaf_chxk_2008::State_::State_( const State_& s )
+iaf_chxk_2008::State_::State_( const State_& s )
   : r( s.r )
 {
   for ( size_t i = 0; i < STATE_VEC_SIZE; ++i )
@@ -159,8 +156,8 @@ nest::iaf_chxk_2008::State_::State_( const State_& s )
   }
 }
 
-nest::iaf_chxk_2008::State_&
-nest::iaf_chxk_2008::State_::operator=( const State_& s )
+iaf_chxk_2008::State_&
+iaf_chxk_2008::State_::operator=( const State_& s )
 {
   r = s.r;
   for ( size_t i = 0; i < STATE_VEC_SIZE; ++i )
@@ -170,7 +167,7 @@ nest::iaf_chxk_2008::State_::operator=( const State_& s )
   return *this;
 }
 
-nest::iaf_chxk_2008::Buffers_::Buffers_( iaf_chxk_2008& n )
+iaf_chxk_2008::Buffers_::Buffers_( iaf_chxk_2008& n )
   : logger_( n )
   , s_( nullptr )
   , c_( nullptr )
@@ -180,7 +177,7 @@ nest::iaf_chxk_2008::Buffers_::Buffers_( iaf_chxk_2008& n )
   // init_buffers_().
 }
 
-nest::iaf_chxk_2008::Buffers_::Buffers_( const Buffers_&, iaf_chxk_2008& n )
+iaf_chxk_2008::Buffers_::Buffers_( const Buffers_&, iaf_chxk_2008& n )
   : logger_( n )
   , s_( nullptr )
   , c_( nullptr )
@@ -195,40 +192,40 @@ nest::iaf_chxk_2008::Buffers_::Buffers_( const Buffers_&, iaf_chxk_2008& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_chxk_2008::Parameters_::get( DictionaryDatum& d ) const
+iaf_chxk_2008::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::V_th, V_th );
-  def< double >( d, names::g_L, g_L );
-  def< double >( d, names::C_m, C_m );
-  def< double >( d, names::E_ex, E_ex );
-  def< double >( d, names::E_in, E_in );
-  def< double >( d, names::E_L, E_L );
-  def< double >( d, names::tau_syn_ex, tau_synE );
-  def< double >( d, names::tau_syn_in, tau_synI );
-  def< double >( d, names::I_e, I_e );
-  def< double >( d, names::tau_ahp, tau_ahp );
-  def< double >( d, names::E_ahp, E_ahp );
-  def< double >( d, names::g_ahp, g_ahp );
-  def< bool >( d, names::ahp_bug, ahp_bug );
+  d[ names::V_th ] = V_th;
+  d[ names::g_L ] = g_L;
+  d[ names::C_m ] = C_m;
+  d[ names::E_ex ] = E_ex;
+  d[ names::E_in ] = E_in;
+  d[ names::E_L ] = E_L;
+  d[ names::tau_syn_ex ] = tau_synE;
+  d[ names::tau_syn_in ] = tau_synI;
+  d[ names::I_e ] = I_e;
+  d[ names::tau_ahp ] = tau_ahp;
+  d[ names::E_ahp ] = E_ahp;
+  d[ names::g_ahp ] = g_ahp;
+  d[ names::ahp_bug ] = ahp_bug;
 }
 
 void
-nest::iaf_chxk_2008::Parameters_::set( const DictionaryDatum& d, Node* node )
+iaf_chxk_2008::Parameters_::set( const Dictionary& d, Node* node )
 {
   // allow setting the membrane potential
-  updateValueParam< double >( d, names::V_th, V_th, node );
-  updateValueParam< double >( d, names::g_L, g_L, node );
-  updateValueParam< double >( d, names::C_m, C_m, node );
-  updateValueParam< double >( d, names::E_ex, E_ex, node );
-  updateValueParam< double >( d, names::E_in, E_in, node );
-  updateValueParam< double >( d, names::E_L, E_L, node );
-  updateValueParam< double >( d, names::tau_syn_ex, tau_synE, node );
-  updateValueParam< double >( d, names::tau_syn_in, tau_synI, node );
-  updateValueParam< double >( d, names::I_e, I_e, node );
-  updateValueParam< double >( d, names::tau_ahp, tau_ahp, node );
-  updateValueParam< double >( d, names::E_ahp, E_ahp, node );
-  updateValueParam< double >( d, names::g_ahp, g_ahp, node );
-  updateValueParam< bool >( d, names::ahp_bug, ahp_bug, node );
+  update_value_param( d, names::V_th, V_th, node );
+  update_value_param( d, names::g_L, g_L, node );
+  update_value_param( d, names::C_m, C_m, node );
+  update_value_param( d, names::E_ex, E_ex, node );
+  update_value_param( d, names::E_in, E_in, node );
+  update_value_param( d, names::E_L, E_L, node );
+  update_value_param( d, names::tau_syn_ex, tau_synE, node );
+  update_value_param( d, names::tau_syn_in, tau_synI, node );
+  update_value_param( d, names::I_e, I_e, node );
+  update_value_param( d, names::tau_ahp, tau_ahp, node );
+  update_value_param( d, names::E_ahp, E_ahp, node );
+  update_value_param( d, names::g_ahp, g_ahp, node );
+  update_value_param( d, names::ahp_bug, ahp_bug, node );
   if ( C_m <= 0 )
   {
     throw BadProperty( "Capacitance must be strictly positive." );
@@ -240,22 +237,22 @@ nest::iaf_chxk_2008::Parameters_::set( const DictionaryDatum& d, Node* node )
 }
 
 void
-nest::iaf_chxk_2008::State_::get( DictionaryDatum& d ) const
+iaf_chxk_2008::State_::get( Dictionary& d ) const
 {
-  def< double >( d, names::V_m, y[ V_M ] ); // Membrane potential
+  d[ names::V_m ] = y[ V_M ];  // Membrane potential
 }
 
 void
-nest::iaf_chxk_2008::State_::set( const DictionaryDatum& d, const Parameters_&, Node* node )
+iaf_chxk_2008::State_::set( const Dictionary& d, const Parameters_&, Node* node )
 {
-  updateValueParam< double >( d, names::V_m, y[ V_M ], node );
+  update_value_param( d, names::V_m, y[ V_M ], node );
 }
 
 /* ----------------------------------------------------------------
  * Default and copy constructor for node, and destructor
  * ---------------------------------------------------------------- */
 
-nest::iaf_chxk_2008::iaf_chxk_2008()
+iaf_chxk_2008::iaf_chxk_2008()
   : ArchivingNode()
   , P_()
   , S_( P_ )
@@ -263,7 +260,7 @@ nest::iaf_chxk_2008::iaf_chxk_2008()
 {
 }
 
-nest::iaf_chxk_2008::iaf_chxk_2008( const iaf_chxk_2008& n )
+iaf_chxk_2008::iaf_chxk_2008( const iaf_chxk_2008& n )
   : ArchivingNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -271,7 +268,7 @@ nest::iaf_chxk_2008::iaf_chxk_2008( const iaf_chxk_2008& n )
 {
 }
 
-nest::iaf_chxk_2008::~iaf_chxk_2008()
+iaf_chxk_2008::~iaf_chxk_2008()
 {
   // GSL structs may not have been allocated, so we need to protect destruction
   if ( B_.s_ )
@@ -293,13 +290,13 @@ nest::iaf_chxk_2008::~iaf_chxk_2008()
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_chxk_2008::init_buffers_()
+iaf_chxk_2008::init_buffers_()
 {
   ArchivingNode::clear_history();
 
-  B_.spike_exc_.clear(); // includes resize
-  B_.spike_inh_.clear(); // includes resize
-  B_.currents_.clear();  // includes resize
+  B_.spike_exc_.clear();  // includes resize
+  B_.spike_inh_.clear();  // includes resize
+  B_.currents_.clear();   // includes resize
 
   B_.logger_.reset();
 
@@ -342,7 +339,7 @@ nest::iaf_chxk_2008::init_buffers_()
 }
 
 void
-nest::iaf_chxk_2008::pre_run_hook()
+iaf_chxk_2008::pre_run_hook()
 {
   // ensures initialization in case mm connected after Simulate
   B_.logger_.init();
@@ -357,7 +354,7 @@ nest::iaf_chxk_2008::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_chxk_2008::update( Time const& origin, const long from, const long to )
+iaf_chxk_2008::update( Time const& origin, const long from, const long to )
 {
   for ( long lag = from; lag < to; ++lag )
   {
@@ -385,11 +382,11 @@ nest::iaf_chxk_2008::update( Time const& origin, const long from, const long to 
       const int status = gsl_odeiv_evolve_apply( B_.e_,
         B_.c_,
         B_.s_,
-        &B_.sys_,             // system of ODE
-        &t,                   // from t
-        B_.step_,             // to t <= step
-        &B_.IntegrationStep_, // integration step size
-        S_.y );               // neuronal state
+        &B_.sys_,              // system of ODE
+        &t,                    // from t
+        B_.step_,              // to t <= step
+        &B_.IntegrationStep_,  // integration step size
+        S_.y );                // neuronal state
       if ( status != GSL_SUCCESS )
       {
         throw GSLSolverFailure( get_name(), status );
@@ -442,7 +439,7 @@ nest::iaf_chxk_2008::update( Time const& origin, const long from, const long to 
 }
 
 void
-nest::iaf_chxk_2008::handle( SpikeEvent& e )
+iaf_chxk_2008::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -459,7 +456,7 @@ nest::iaf_chxk_2008::handle( SpikeEvent& e )
 }
 
 void
-nest::iaf_chxk_2008::handle( CurrentEvent& e )
+iaf_chxk_2008::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -468,8 +465,11 @@ nest::iaf_chxk_2008::handle( CurrentEvent& e )
 }
 
 void
-nest::iaf_chxk_2008::handle( DataLoggingRequest& e )
+iaf_chxk_2008::handle( DataLoggingRequest& e )
 {
   B_.logger_.handle( e );
 }
-#endif // HAVE_GSL
+
+}  // namespace nest
+
+#endif  // HAVE_GSL

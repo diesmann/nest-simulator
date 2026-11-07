@@ -35,15 +35,9 @@
 // Includes from nestkernel:
 #include "exceptions.h"
 #include "kernel_manager.h"
-#include "name.h"
 #include "nest_impl.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dict.h"
-#include "dictutils.h"
-
-using namespace nest;
 
 namespace nest
 {
@@ -57,7 +51,7 @@ register_glif_cond( const std::string& name )
 // for each quantity to be recorded.
 template <>
 void
-DynamicRecordablesMap< nest::glif_cond >::create( glif_cond& host )
+DynamicRecordablesMap< glif_cond >::create( glif_cond& host )
 {
   insert( names::V_m, host.get_data_access_functor( glif_cond::State_::V_M ) );
   insert( names::I, host.get_data_access_functor( glif_cond::State_::I ) );
@@ -69,12 +63,12 @@ DynamicRecordablesMap< nest::glif_cond >::create( glif_cond& host )
   host.insert_conductance_recordables();
 }
 
-Name
+std::string
 glif_cond::get_g_receptor_name( size_t receptor )
 {
   std::stringstream receptor_name;
   receptor_name << "g_" << receptor + 1;
-  return Name( receptor_name.str() );
+  return receptor_name.str();
 }
 
 void
@@ -92,20 +86,19 @@ glif_cond::get_data_access_functor( size_t elem )
 {
   return DataAccessFunctor< glif_cond >( *this, elem );
 }
-}
 
 /* ----------------------------------------------------------------
  * Iteration function
  * ---------------------------------------------------------------- */
 extern "C" inline int
-nest::glif_cond_dynamics( double, const double y[], double f[], void* pnode )
+glif_cond_dynamics( double, const double y[], double f[], void* pnode )
 {
   // a shorthand
-  typedef nest::glif_cond::State_ S;
+  typedef glif_cond::State_ S;
 
   // get access to node so we can almost work as in a member function
   assert( pnode );
-  const nest::glif_cond& node = *( reinterpret_cast< nest::glif_cond* >( pnode ) );
+  const glif_cond& node = *( reinterpret_cast< glif_cond* >( pnode ) );
 
   const bool is_refractory = node.S_.refractory_steps_ > 0;
 
@@ -149,25 +142,25 @@ nest::glif_cond_dynamics( double, const double y[], double f[], void* pnode )
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::glif_cond::Parameters_::Parameters_()
-  : G_( 9.43 )               // in nS
-  , E_L_( -78.85 )           // in mV
-  , th_inf_( -51.68 - E_L_ ) // in mv, rel to E_L_, - 51.68 - E_L_, i.e., 27.17
-  , C_m_( 58.72 )            // in pF
-  , t_ref_( 3.75 )           // in ms
-  , V_reset_( 0.0 )          // in mV, rel to E_L_, -78.85 - E_L_
-  , th_spike_add_( 0.37 )    // in mV
-  , th_spike_decay_( 0.009 ) // in 1/ms
+glif_cond::Parameters_::Parameters_()
+  : G_( 9.43 )                // in nS
+  , E_L_( -78.85 )            // in mV
+  , th_inf_( -51.68 - E_L_ )  // in mv, rel to E_L_, - 51.68 - E_L_, i.e., 27.17
+  , C_m_( 58.72 )             // in pF
+  , t_ref_( 3.75 )            // in ms
+  , V_reset_( 0.0 )           // in mV, rel to E_L_, -78.85 - E_L_
+  , th_spike_add_( 0.37 )     // in mV
+  , th_spike_decay_( 0.009 )  // in 1/ms
   , voltage_reset_fraction_( 0.20 )
-  , voltage_reset_add_( 18.51 )                           // in mV
-  , th_voltage_index_( 0.005 )                            // in 1/ms
-  , th_voltage_decay_( 0.09 )                             // in 1/ms
-  , asc_init_( std::vector< double >( 2, 0.0 ) )          // in pA
-  , asc_decay_( std::vector< double > { 0.003, 0.1 } )    // in 1/ms
-  , asc_amps_( std::vector< double > { -9.18, -198.94 } ) // in pA
-  , asc_r_( std::vector< double >( 2, 1.0 ) )             // in ms
-  , tau_syn_( std::vector< double > { 0.2, 2.0 } )        // in ms
-  , E_rev_( std::vector< double > { 0.0, -85.0 } )        // in mV
+  , voltage_reset_add_( 18.51 )                            // in mV
+  , th_voltage_index_( 0.005 )                             // in 1/ms
+  , th_voltage_decay_( 0.09 )                              // in 1/ms
+  , asc_init_( std::vector< double >( 2, 0.0 ) )           // in pA
+  , asc_decay_( std::vector< double > { 0.003, 0.1 } )     // in 1/ms
+  , asc_amps_( std::vector< double > { -9.18, -198.94 } )  // in pA
+  , asc_r_( std::vector< double >( 2, 1.0 ) )              // in ms
+  , tau_syn_( std::vector< double > { 0.2, 2.0 } )         // in ms
+  , E_rev_( std::vector< double > { 0.0, -85.0 } )         // in mV
   , has_connections_( false )
   , has_theta_spike_( false )
   , has_asc_( false )
@@ -175,12 +168,12 @@ nest::glif_cond::Parameters_::Parameters_()
 {
 }
 
-nest::glif_cond::State_::State_( const Parameters_& p )
-  : threshold_( p.th_inf_ )    // in mV
-  , threshold_spike_( 0.0 )    // in mV
-  , threshold_voltage_( 0.0 )  // in mV
-  , ASCurrents_( p.asc_init_ ) // in pA
-  , ASCurrents_sum_( 0.0 )     // in pA
+glif_cond::State_::State_( const Parameters_& p )
+  : threshold_( p.th_inf_ )     // in mV
+  , threshold_spike_( 0.0 )     // in mV
+  , threshold_voltage_( 0.0 )   // in mV
+  , ASCurrents_( p.asc_init_ )  // in pA
+  , ASCurrents_sum_( 0.0 )      // in pA
   , refractory_steps_( 0 )
   , y_( STATE_VECTOR_MIN_SIZE - NUMBER_OF_RECORDABLES_ELEMENTS, 0.0 )
 
@@ -189,7 +182,7 @@ nest::glif_cond::State_::State_( const Parameters_& p )
   {
     ASCurrents_sum_ += ASCurrents_[ a ];
   }
-  y_[ V_M ] = 0.0; // initialize to membrane potential
+  y_[ V_M ] = 0.0;  // initialize to membrane potential
 }
 
 /* ----------------------------------------------------------------
@@ -197,47 +190,45 @@ nest::glif_cond::State_::State_( const Parameters_& p )
  * ---------------------------------------------------------------- */
 
 void
-nest::glif_cond::Parameters_::get( DictionaryDatum& d ) const
+glif_cond::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::V_th, th_inf_ + E_L_ );
-  def< double >( d, names::g_m, G_ );
-  def< double >( d, names::E_L, E_L_ );
-  def< double >( d, names::C_m, C_m_ );
-  def< double >( d, names::t_ref, t_ref_ );
-  def< double >( d, names::V_reset, V_reset_ + E_L_ );
+  d[ names::V_th ] = th_inf_ + E_L_;
+  d[ names::g_m ] = G_;
+  d[ names::E_L ] = E_L_;
+  d[ names::C_m ] = C_m_;
+  d[ names::t_ref ] = t_ref_;
+  d[ names::V_reset ] = V_reset_ + E_L_;
 
-  def< double >( d, names::th_spike_add, th_spike_add_ );
-  def< double >( d, names::th_spike_decay, th_spike_decay_ );
-  def< double >( d, names::voltage_reset_fraction, voltage_reset_fraction_ );
-  def< double >( d, names::voltage_reset_add, voltage_reset_add_ );
+  d[ names::th_spike_add ] = th_spike_add_;
+  d[ names::th_spike_decay ] = th_spike_decay_;
+  d[ names::voltage_reset_fraction ] = voltage_reset_fraction_;
+  d[ names::voltage_reset_add ] = voltage_reset_add_;
 
-  def< double >( d, names::th_voltage_index, th_voltage_index_ );
-  def< double >( d, names::th_voltage_decay, th_voltage_decay_ );
+  d[ names::th_voltage_index ] = th_voltage_index_;
+  d[ names::th_voltage_decay ] = th_voltage_decay_;
 
-  def< std::vector< double > >( d, names::asc_init, asc_init_ );
-  def< std::vector< double > >( d, names::asc_decay, asc_decay_ );
-  def< std::vector< double > >( d, names::asc_amps, asc_amps_ );
-  def< std::vector< double > >( d, names::asc_r, asc_r_ );
-  ArrayDatum tau_syn_ad( tau_syn_ );
-  def< ArrayDatum >( d, names::tau_syn, tau_syn_ad );
-  ArrayDatum E_rev_ad( E_rev_ );
-  def< ArrayDatum >( d, names::E_rev, E_rev_ad );
-  def< bool >( d, names::has_connections, has_connections_ );
-  def< bool >( d, names::spike_dependent_threshold, has_theta_spike_ );
-  def< bool >( d, names::after_spike_currents, has_asc_ );
-  def< bool >( d, names::adapting_threshold, has_theta_voltage_ );
+  d[ names::asc_init ] = asc_init_;
+  d[ names::asc_decay ] = asc_decay_;
+  d[ names::asc_amps ] = asc_amps_;
+  d[ names::asc_r ] = asc_r_;
+  d[ names::tau_syn ] = tau_syn_;
+  d[ names::E_rev ] = E_rev_;
+  d[ names::has_connections ] = has_connections_;
+  d[ names::spike_dependent_threshold ] = has_theta_spike_;
+  d[ names::after_spike_currents ] = has_asc_;
+  d[ names::adapting_threshold ] = has_theta_voltage_;
 }
 
 double
-nest::glif_cond::Parameters_::set( const DictionaryDatum& d, Node* node )
+glif_cond::Parameters_::set( const Dictionary& d, Node* node )
 {
   // if E_L_ is changed, we need to adjust all variables defined relative to
   // E_L_
   const double ELold = E_L_;
-  updateValue< double >( d, names::E_L, E_L_ );
+  d.update_value( names::E_L, E_L_ );
   const double delta_EL = E_L_ - ELold;
 
-  if ( updateValueParam< double >( d, names::V_reset, V_reset_, node ) )
+  if ( update_value_param( d, names::V_reset, V_reset_, node ) )
   {
     V_reset_ -= E_L_;
   }
@@ -246,7 +237,7 @@ nest::glif_cond::Parameters_::set( const DictionaryDatum& d, Node* node )
     V_reset_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_th, th_inf_, node ) )
+  if ( update_value_param( d, names::V_th, th_inf_, node ) )
   {
     th_inf_ -= E_L_;
   }
@@ -255,34 +246,34 @@ nest::glif_cond::Parameters_::set( const DictionaryDatum& d, Node* node )
     th_inf_ -= delta_EL;
   }
 
-  updateValueParam< double >( d, names::g_m, G_, node );
-  updateValueParam< double >( d, names::C_m, C_m_, node );
-  updateValueParam< double >( d, names::t_ref, t_ref_, node );
+  update_value_param( d, names::g_m, G_, node );
+  update_value_param( d, names::C_m, C_m_, node );
+  update_value_param( d, names::t_ref, t_ref_, node );
 
-  updateValueParam< double >( d, names::th_spike_add, th_spike_add_, node );
-  updateValueParam< double >( d, names::th_spike_decay, th_spike_decay_, node );
-  updateValueParam< double >( d, names::voltage_reset_fraction, voltage_reset_fraction_, node );
-  updateValueParam< double >( d, names::voltage_reset_add, voltage_reset_add_, node );
+  update_value_param( d, names::th_spike_add, th_spike_add_, node );
+  update_value_param( d, names::th_spike_decay, th_spike_decay_, node );
+  update_value_param( d, names::voltage_reset_fraction, voltage_reset_fraction_, node );
+  update_value_param( d, names::voltage_reset_add, voltage_reset_add_, node );
 
-  updateValueParam< double >( d, names::th_voltage_index, th_voltage_index_, node );
-  updateValueParam< double >( d, names::th_voltage_decay, th_voltage_decay_, node );
+  update_value_param( d, names::th_voltage_index, th_voltage_index_, node );
+  update_value_param( d, names::th_voltage_decay, th_voltage_decay_, node );
 
-  updateValue< std::vector< double > >( d, names::asc_init, asc_init_ );
-  updateValue< std::vector< double > >( d, names::asc_decay, asc_decay_ );
-  updateValue< std::vector< double > >( d, names::asc_amps, asc_amps_ );
-  updateValue< std::vector< double > >( d, names::asc_r, asc_r_ );
+  d.update_value( names::asc_init, asc_init_ );
+  d.update_value( names::asc_decay, asc_decay_ );
+  d.update_value( names::asc_amps, asc_amps_ );
+  d.update_value( names::asc_r, asc_r_ );
 
   // set model mechanisms
-  updateValue< bool >( d, names::spike_dependent_threshold, has_theta_spike_ );
-  updateValue< bool >( d, names::after_spike_currents, has_asc_ );
-  updateValue< bool >( d, names::adapting_threshold, has_theta_voltage_ );
+  d.update_value( names::spike_dependent_threshold, has_theta_spike_ );
+  d.update_value( names::after_spike_currents, has_asc_ );
+  d.update_value( names::adapting_threshold, has_theta_voltage_ );
 
   // check model mechanisms parameter
-  if ( not( ( not has_theta_spike_ and not has_asc_ and not has_theta_voltage_ ) or // glif1
-         ( has_theta_spike_ and not has_asc_ and not has_theta_voltage_ ) or        // glif2
-         ( not has_theta_spike_ and has_asc_ and not has_theta_voltage_ ) or        // glif3
-         ( has_theta_spike_ and has_asc_ and not has_theta_voltage_ ) or            // glif4
-         ( has_theta_spike_ and has_asc_ and has_theta_voltage_ )                   // glif5
+  if ( not( ( not has_theta_spike_ and not has_asc_ and not has_theta_voltage_ ) or  // glif1
+         ( has_theta_spike_ and not has_asc_ and not has_theta_voltage_ ) or         // glif2
+         ( not has_theta_spike_ and has_asc_ and not has_theta_voltage_ ) or         // glif3
+         ( has_theta_spike_ and has_asc_ and not has_theta_voltage_ ) or             // glif4
+         ( has_theta_spike_ and has_asc_ and has_theta_voltage_ )                    // glif5
          ) )
   {
     throw BadProperty(
@@ -362,8 +353,8 @@ nest::glif_cond::Parameters_::set( const DictionaryDatum& d, Node* node )
   }
 
   const size_t old_n_receptors = this->n_receptors_();
-  bool tau_flag = updateValue< std::vector< double > >( d, names::tau_syn, tau_syn_ );
-  bool Erev_flag = updateValue< std::vector< double > >( d, names::E_rev, E_rev_ );
+  bool tau_flag = d.update_value( names::tau_syn, tau_syn_ );
+  bool Erev_flag = d.update_value( names::E_rev, E_rev_ );
 
   // receptor arrays have been modified
   if ( tau_flag or Erev_flag )
@@ -397,32 +388,32 @@ nest::glif_cond::Parameters_::set( const DictionaryDatum& d, Node* node )
 }
 
 void
-nest::glif_cond::State_::get( DictionaryDatum& d, const Parameters_& p ) const
+glif_cond::State_::get( Dictionary& d, const Parameters_& p ) const
 {
-  def< double >( d, names::V_m, y_[ V_M ] + p.E_L_ );
-  def< std::vector< double > >( d, names::ASCurrents, ASCurrents_ );
+  d[ names::V_m ] = y_[ V_M ] + p.E_L_;
+  d[ names::ASCurrents ] = ASCurrents_;
 
-  std::vector< double >* dg = new std::vector< double >();
-  std::vector< double >* g = new std::vector< double >();
+  std::vector< double > dg;
+  std::vector< double > g;
 
-  for ( size_t i = 0; i
-        < ( ( y_.size() - State_::NUMBER_OF_FIXED_STATES_ELEMENTS ) / State_::NUMBER_OF_STATES_ELEMENTS_PER_RECEPTOR );
-        ++i )
+  for ( size_t i = 0;
+    i < ( ( y_.size() - State_::NUMBER_OF_FIXED_STATES_ELEMENTS ) / State_::NUMBER_OF_STATES_ELEMENTS_PER_RECEPTOR );
+    ++i )
   {
-    dg->push_back( y_[ State_::DG_SYN - State_::NUMBER_OF_RECORDABLES_ELEMENTS
+    dg.push_back( y_[ State_::DG_SYN - State_::NUMBER_OF_RECORDABLES_ELEMENTS
       + ( i * State_::NUMBER_OF_STATES_ELEMENTS_PER_RECEPTOR ) ] );
-    g->push_back( y_[ State_::G_SYN - State_::NUMBER_OF_RECORDABLES_ELEMENTS
+    g.push_back( y_[ State_::G_SYN - State_::NUMBER_OF_RECORDABLES_ELEMENTS
       + ( i * State_::NUMBER_OF_STATES_ELEMENTS_PER_RECEPTOR ) ] );
   }
 
-  ( *d )[ names::dg ] = DoubleVectorDatum( dg );
-  ( *d )[ names::g ] = DoubleVectorDatum( g );
+  d[ names::dg ] = dg;
+  d[ names::g ] = g;
 }
 
 void
-nest::glif_cond::State_::set( const DictionaryDatum& d, const Parameters_& p, double delta_EL, Node* node )
+glif_cond::State_::set( const Dictionary& d, const Parameters_& p, double delta_EL, Node* node )
 {
-  if ( updateValueParam< double >( d, names::V_m, y_[ V_M ], node ) )
+  if ( update_value_param( d, names::V_m, y_[ V_M ], node ) )
   {
     y_[ V_M ] -= p.E_L_;
   }
@@ -431,7 +422,7 @@ nest::glif_cond::State_::set( const DictionaryDatum& d, const Parameters_& p, do
     y_[ V_M ] -= delta_EL;
   }
 
-  bool asc_flag = updateValue< std::vector< double > >( d, names::ASCurrents, ASCurrents_ );
+  bool asc_flag = d.update_value( names::ASCurrents, ASCurrents_ );
   if ( asc_flag and not p.has_asc_ )
   {
     throw BadProperty( "After spike currents are not supported or settable in the current model mechanisms." );
@@ -447,19 +438,18 @@ nest::glif_cond::State_::set( const DictionaryDatum& d, const Parameters_& p, do
     }
   }
 
-  if ( updateValueParam< double >( d, names::threshold_spike, threshold_spike_, node ) and not p.has_theta_spike_ )
+  if ( update_value_param( d, names::threshold_spike, threshold_spike_, node ) and not p.has_theta_spike_ )
   {
     throw BadProperty( "Threshold spike component is not supported or settable in the current model mechanisms." );
   }
 
-  if ( updateValueParam< double >( d, names::threshold_voltage, threshold_voltage_, node )
-    and not p.has_theta_voltage_ )
+  if ( update_value_param( d, names::threshold_voltage, threshold_voltage_, node ) and not p.has_theta_voltage_ )
   {
     throw BadProperty( "Threshold voltage component is not supported or settable in the current model mechanisms." );
   }
 }
 
-nest::glif_cond::Buffers_::Buffers_( glif_cond& n )
+glif_cond::Buffers_::Buffers_( glif_cond& n )
   : logger_( n )
   , s_( nullptr )
   , c_( nullptr )
@@ -470,7 +460,7 @@ nest::glif_cond::Buffers_::Buffers_( glif_cond& n )
 {
 }
 
-nest::glif_cond::Buffers_::Buffers_( const Buffers_& b, glif_cond& n )
+glif_cond::Buffers_::Buffers_( const Buffers_& b, glif_cond& n )
   : logger_( n )
   , s_( nullptr )
   , c_( nullptr )
@@ -486,7 +476,7 @@ nest::glif_cond::Buffers_::Buffers_( const Buffers_& b, glif_cond& n )
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::glif_cond::glif_cond()
+glif_cond::glif_cond()
   : ArchivingNode()
   , P_()
   , S_( P_ )
@@ -495,7 +485,7 @@ nest::glif_cond::glif_cond()
   recordablesMap_.create( *this );
 }
 
-nest::glif_cond::glif_cond( const glif_cond& n )
+glif_cond::glif_cond( const glif_cond& n )
   : ArchivingNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -504,7 +494,7 @@ nest::glif_cond::glif_cond( const glif_cond& n )
   recordablesMap_.create( *this );
 }
 
-nest::glif_cond::~glif_cond()
+glif_cond::~glif_cond()
 {
   // GSL structs may not have been allocated, so we need to protect destruction
   if ( B_.s_ )
@@ -527,16 +517,16 @@ nest::glif_cond::~glif_cond()
  * ---------------------------------------------------------------- */
 
 void
-nest::glif_cond::init_buffers_()
+glif_cond::init_buffers_()
 {
-  B_.spikes_.clear();   // includes resize
-  B_.currents_.clear(); // include resize
-  B_.logger_.reset();   // includes resize
+  B_.spikes_.clear();    // includes resize
+  B_.currents_.clear();  // include resize
+  B_.logger_.reset();    // includes resize
 
   B_.step_ = Time::get_resolution().get_ms();
   B_.IntegrationStep_ =
-    B_.step_; // reasonable initial value for numerical integrator step size; this will anyway be overwritten by
-              // gsl_odeiv_evolve_apply(), but it might confuse the integrator if it contains uninitialised data
+    B_.step_;  // reasonable initial value for numerical integrator step size; this will anyway be overwritten by
+               // gsl_odeiv_evolve_apply(), but it might confuse the integrator if it contains uninitialised data
 
   if ( not B_.c_ )
   {
@@ -555,11 +545,11 @@ nest::glif_cond::init_buffers_()
 }
 
 void
-nest::glif_cond::pre_run_hook()
+glif_cond::pre_run_hook()
 {
   B_.logger_.init();
 
-  const double h = Time::get_resolution().get_ms(); // in ms
+  const double h = Time::get_resolution().get_ms();  // in ms
 
   // pre-computing of decay parameters
   if ( P_.has_theta_spike_ )
@@ -626,7 +616,7 @@ nest::glif_cond::pre_run_hook()
  * ---------------------------------------------------------------- */
 
 void
-nest::glif_cond::update( Time const& origin, const long from, const long to )
+glif_cond::update( Time const& origin, const long from, const long to )
 {
   // initial values
   double v_old = S_.y_[ State_::V_M ];
@@ -651,11 +641,11 @@ nest::glif_cond::update( Time const& origin, const long from, const long to )
       const int status = gsl_odeiv_evolve_apply( B_.e_,
         B_.c_,
         B_.s_,
-        &B_.sys_,             // system of ODE
-        &t,                   // from t
-        B_.step_,             // to t <= step
-        &B_.IntegrationStep_, // integration step size
-        &S_.y_[ 0 ] );        // neuronal state
+        &B_.sys_,              // system of ODE
+        &t,                    // from t
+        B_.step_,              // to t <= step
+        &B_.IntegrationStep_,  // integration step size
+        &S_.y_[ 0 ] );         // neuronal state
       if ( status != GSL_SUCCESS )
       {
         throw GSLSolverFailure( get_name(), status );
@@ -760,7 +750,7 @@ nest::glif_cond::update( Time const& origin, const long from, const long to )
       // immediate effect on the state of the neuron
       S_.y_[ State_::DG_SYN - State_::NUMBER_OF_RECORDABLES_ELEMENTS
         + i * State_::NUMBER_OF_STATES_ELEMENTS_PER_RECEPTOR ] +=
-        B_.spikes_[ i ].get_value( lag ) * V_.CondInitialValues_[ i ]; // add incoming spike
+        B_.spikes_[ i ].get_value( lag ) * V_.CondInitialValues_[ i ];  // add incoming spike
     }
     // Update any external currents
     B_.I_ = B_.currents_.get_value( lag );
@@ -773,7 +763,7 @@ nest::glif_cond::update( Time const& origin, const long from, const long to )
 }
 
 size_t
-nest::glif_cond::handles_test_event( SpikeEvent&, size_t receptor_type )
+glif_cond::handles_test_event( SpikeEvent&, size_t receptor_type )
 {
   if ( receptor_type <= 0 or receptor_type > P_.n_receptors_() )
   {
@@ -785,7 +775,7 @@ nest::glif_cond::handles_test_event( SpikeEvent&, size_t receptor_type )
 }
 
 void
-nest::glif_cond::handle( SpikeEvent& e )
+glif_cond::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -794,7 +784,7 @@ nest::glif_cond::handle( SpikeEvent& e )
 }
 
 void
-nest::glif_cond::handle( CurrentEvent& e )
+glif_cond::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -805,9 +795,11 @@ nest::glif_cond::handle( CurrentEvent& e )
 // Do not move this function as inline to h-file. It depends on
 // universal_data_logger_impl.h being included here.
 void
-nest::glif_cond::handle( DataLoggingRequest& e )
+glif_cond::handle( DataLoggingRequest& e )
 {
-  B_.logger_.handle( e ); // the logger does this for us
+  B_.logger_.handle( e );  // the logger does this for us
 }
 
-#endif // HAVE_GSL
+}  // namespace nest
+
+#endif  // HAVE_GSL

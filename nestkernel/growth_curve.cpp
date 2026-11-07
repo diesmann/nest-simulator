@@ -29,34 +29,34 @@
 #include "nest_names.h"
 #include "nest_time.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * GrowthCurveLinear
  * ---------------------------------------------------------------- */
 
-nest::GrowthCurveLinear::GrowthCurveLinear()
+GrowthCurveLinear::GrowthCurveLinear()
   : GrowthCurve( names::linear )
   , eps_( 0.7 )
 {
 }
 
 void
-nest::GrowthCurveLinear::get( DictionaryDatum& d ) const
+GrowthCurveLinear::get( Dictionary& d ) const
 {
-  def< std::string >( d, names::growth_curve, name_.toString() );
-  def< double >( d, names::eps, eps_ );
+  d[ names::growth_curve ] = name_;
+  d[ names::eps ] = eps_;
 }
 
 void
-nest::GrowthCurveLinear::set( const DictionaryDatum& d )
+GrowthCurveLinear::set( const Dictionary& d )
 {
-  updateValue< double >( d, names::eps, eps_ );
+  d.update_value( names::eps, eps_ );
 }
 
 double
-nest::GrowthCurveLinear::update( double t,
+GrowthCurveLinear::update( double t,
   double t_minus,
   double Ca_minus,
   double z_minus,
@@ -73,7 +73,7 @@ nest::GrowthCurveLinear::update( double t,
  * GrowthCurveGaussian
  * ---------------------------------------------------------------- */
 
-nest::GrowthCurveGaussian::GrowthCurveGaussian()
+GrowthCurveGaussian::GrowthCurveGaussian()
   : GrowthCurve( names::gaussian )
   , eta_( 0.1 )
   , eps_( 0.7 )
@@ -82,23 +82,23 @@ nest::GrowthCurveGaussian::GrowthCurveGaussian()
 }
 
 void
-nest::GrowthCurveGaussian::get( DictionaryDatum& d ) const
+GrowthCurveGaussian::get( Dictionary& d ) const
 {
-  def< std::string >( d, names::growth_curve, name_.toString() );
-  def< double >( d, names::eps, eps_ );
-  def< double >( d, names::eta, eta_ );
+  d[ names::growth_curve ] = name_;
+  d[ names::eps ] = eps_;
+  d[ names::eta ] = eta_;
 }
 
 void
-nest::GrowthCurveGaussian::set( const DictionaryDatum& d )
+GrowthCurveGaussian::set( const Dictionary& d )
 {
-  updateValue< double >( d, names::eps, eps_ );
-  updateValue< double >( d, names::eta, eta_ );
+  d.update_value( names::eps, eps_ );
+  d.update_value( names::eta, eta_ );
   compute_local_();
 }
 
 double
-nest::GrowthCurveGaussian::update( double t,
+GrowthCurveGaussian::update( double t,
   double t_minus,
   double Ca_minus,
   double z_minus,
@@ -124,7 +124,7 @@ nest::GrowthCurveGaussian::update( double t,
 }
 
 void
-nest::GrowthCurveGaussian::compute_local_()
+GrowthCurveGaussian::compute_local_()
 {
   inv_zeta_ = 2.0 * numerics::sqrt_log_two / ( eta_ - eps_ );
   xi_ = ( eta_ + eps_ ) * 0.5;
@@ -134,7 +134,7 @@ nest::GrowthCurveGaussian::compute_local_()
  * GrowthCurveSigmoid
  * ---------------------------------------------------------------- */
 
-nest::GrowthCurveSigmoid::GrowthCurveSigmoid()
+GrowthCurveSigmoid::GrowthCurveSigmoid()
   : GrowthCurve( names::sigmoid )
   , eps_( 0.7 )
   , psi_( 0.1 )
@@ -142,18 +142,18 @@ nest::GrowthCurveSigmoid::GrowthCurveSigmoid()
 }
 
 void
-nest::GrowthCurveSigmoid::get( DictionaryDatum& d ) const
+GrowthCurveSigmoid::get( Dictionary& d ) const
 {
-  def< std::string >( d, names::growth_curve, name_.toString() );
-  def< double >( d, names::eps, eps_ );
-  def< double >( d, names::psi, psi_ );
+  d[ names::growth_curve ] = name_;
+  d[ names::eps ] = eps_;
+  d[ names::psi ] = psi_;
 }
 
 void
-nest::GrowthCurveSigmoid::set( const DictionaryDatum& d )
+GrowthCurveSigmoid::set( const Dictionary& d )
 {
-  updateValue< double >( d, names::eps, eps_ );
-  updateValue< double >( d, names::psi, psi_ );
+  d.update_value( names::eps, eps_ );
+  d.update_value( names::psi, psi_ );
 
   // check that w is greater than 0
   if ( not( psi_ >= 0 ) )
@@ -163,7 +163,7 @@ nest::GrowthCurveSigmoid::set( const DictionaryDatum& d )
 }
 
 double
-nest::GrowthCurveSigmoid::update( double t,
+GrowthCurveSigmoid::update( double t,
   double t_minus,
   double Ca_minus,
   double z_minus,
@@ -186,3 +186,5 @@ nest::GrowthCurveSigmoid::update( double t,
 
   return std::max( z_value, 0.0 );
 }
+
+}  // namespace nest

@@ -27,13 +27,6 @@
 // C++ includes:
 #include <numeric>
 
-// Includes from sli:
-#include "arraydatum.h"
-#include "dict.h"
-#include "dictutils.h"
-#include "doubledatum.h"
-#include "integerdatum.h"
-
 // Includes from libnestutil:
 #include "compose.hpp"
 #include "logging.h"
@@ -42,33 +35,36 @@
 #include "kernel_manager.h"
 #include "nest_impl.h"
 
+
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
 void
-nest::register_music_rate_out_proxy( const std::string& name )
+register_music_rate_out_proxy( const std::string& name )
 {
   register_node_model< music_rate_out_proxy >( name );
 }
 
-nest::music_rate_out_proxy::Parameters_::Parameters_()
+music_rate_out_proxy::Parameters_::Parameters_()
   : port_name_( "rate_out" )
 {
 }
 
-nest::music_rate_out_proxy::State_::State_()
+music_rate_out_proxy::State_::State_()
   : published_( false )
   , port_width_( -1 )
 {
 }
 
-nest::music_rate_out_proxy::Buffers_::Buffers_()
+music_rate_out_proxy::Buffers_::Buffers_()
   : data_()
 {
 }
 
-nest::music_rate_out_proxy::Buffers_::Buffers_( const Buffers_& b )
+music_rate_out_proxy::Buffers_::Buffers_( const Buffers_& b )
   : data_( b.data_ )
 {
 }
@@ -78,33 +74,33 @@ nest::music_rate_out_proxy::Buffers_::Buffers_( const Buffers_& b )
  * ---------------------------------------------------------------- */
 
 void
-nest::music_rate_out_proxy::Parameters_::get( DictionaryDatum& d ) const
+music_rate_out_proxy::Parameters_::get( Dictionary& d ) const
 {
-  ( *d )[ names::port_name ] = port_name_;
+  d[ names::port_name ] = port_name_;
 }
 
 void
-nest::music_rate_out_proxy::Parameters_::set( const DictionaryDatum& d, State_& s )
+music_rate_out_proxy::Parameters_::set( const Dictionary& d, State_& s )
 {
   // TODO: This is not possible, as P_ does not know about get_name()
-  //  if(d->known(names::port_name) and s.published_)
+  //  if(d.known(names::port_name) and s.published_)
   //    throw MUSICPortAlreadyPublished(get_name(), P_.port_name_);
 
   if ( not s.published_ )
   {
-    updateValue< string >( d, names::port_name, port_name_ );
+    d.update_value( names::port_name, port_name_ );
   }
 }
 
 void
-nest::music_rate_out_proxy::State_::get( DictionaryDatum& d ) const
+music_rate_out_proxy::State_::get( Dictionary& d ) const
 {
-  ( *d )[ names::published ] = published_;
-  ( *d )[ names::port_width ] = port_width_;
+  d[ names::published ] = published_;
+  d[ names::port_width ] = port_width_;
 }
 
 void
-nest::music_rate_out_proxy::State_::set( const DictionaryDatum&, const Parameters_& )
+music_rate_out_proxy::State_::set( const Dictionary&, const Parameters_& )
 {
 }
 
@@ -113,21 +109,21 @@ nest::music_rate_out_proxy::State_::set( const DictionaryDatum&, const Parameter
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::music_rate_out_proxy::music_rate_out_proxy()
+music_rate_out_proxy::music_rate_out_proxy()
   : DeviceNode()
   , P_()
   , S_()
 {
 }
 
-nest::music_rate_out_proxy::music_rate_out_proxy( const music_rate_out_proxy& n )
+music_rate_out_proxy::music_rate_out_proxy( const music_rate_out_proxy& n )
   : DeviceNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
 {
 }
 
-nest::music_rate_out_proxy::~music_rate_out_proxy()
+music_rate_out_proxy::~music_rate_out_proxy()
 {
   if ( S_.published_ )
   {
@@ -136,12 +132,12 @@ nest::music_rate_out_proxy::~music_rate_out_proxy()
 }
 
 void
-nest::music_rate_out_proxy::init_buffers_()
+music_rate_out_proxy::init_buffers_()
 {
 }
 
 void
-nest::music_rate_out_proxy::pre_run_hook()
+music_rate_out_proxy::pre_run_hook()
 {
   // only publish the output port once,
   if ( not S_.published_ )
@@ -183,7 +179,7 @@ nest::music_rate_out_proxy::pre_run_hook()
 
 
     MUSIC::ArrayData* dmap =
-      new MUSIC::ArrayData( static_cast< void* >( &( B_.data_.front() ) ), MPI::DOUBLE, 0, S_.port_width_ );
+      new MUSIC::ArrayData( static_cast< void* >( &( B_.data_.front() ) ), MPI_DOUBLE, 0, S_.port_width_ );
 
 
     // Setup an array map
@@ -193,34 +189,34 @@ nest::music_rate_out_proxy::pre_run_hook()
 
 
     std::string msg = String::compose( "Mapping MUSIC output port '%1' with width=%2.", P_.port_name_, S_.port_width_ );
-    LOG( M_INFO, "MusicRateHandler::publish_port()", msg.c_str() );
+    LOG( VerbosityLevel::INFO, "MusicRateHandler::publish_port()", msg.c_str() );
   }
 }
 
 void
-nest::music_rate_out_proxy::get_status( DictionaryDatum& d ) const
+music_rate_out_proxy::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d );
 
-  ( *d )[ names::connection_count ] = V_.index_map_.size();
+  d[ names::connection_count ] = static_cast< long >( V_.index_map_.size() );
 
   // make a copy, since MUSIC uses int instead of long int
-  std::vector< long >* pInd_map_long = new std::vector< long >( V_.index_map_.size() );
+  std::vector< long > pInd_map_long( V_.index_map_.size() );
   std::copy< std::vector< MUSIC::GlobalIndex >::const_iterator, std::vector< long >::iterator >(
-    V_.index_map_.begin(), V_.index_map_.end(), pInd_map_long->begin() );
+    V_.index_map_.begin(), V_.index_map_.end(), pInd_map_long.begin() );
 
-  ( *d )[ names::index_map ] = IntVectorDatum( pInd_map_long );
+  d[ names::index_map ] = pInd_map_long;
 }
 
 void
-nest::music_rate_out_proxy::set_status( const DictionaryDatum& d )
+music_rate_out_proxy::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_; // temporary copy in case of errors
-  ptmp.set( d, S_ );     // throws if BadProperty
+  Parameters_ ptmp = P_;  // temporary copy in case of errors
+  ptmp.set( d, S_ );      // throws if BadProperty
 
   State_ stmp = S_;
-  stmp.set( d, P_ ); // throws if BadProperty
+  stmp.set( d, P_ );  // throws if BadProperty
 
   // if we get here, temporaries contain consistent set of properties
   P_ = ptmp;
@@ -228,7 +224,7 @@ nest::music_rate_out_proxy::set_status( const DictionaryDatum& d )
 }
 
 void
-nest::music_rate_out_proxy::handle( InstantaneousRateConnectionEvent& e )
+music_rate_out_proxy::handle( InstantaneousRateConnectionEvent& e )
 {
   // propagate last rate in min delay interval to MUSIC port; we can not use
   // e.end() - 1 since the iterator is defined in terms of unsigned ints, not
@@ -243,5 +239,7 @@ nest::music_rate_out_proxy::handle( InstantaneousRateConnectionEvent& e )
     B_.data_[ receiver_port ] = e.get_coeffvalue( it );
   }
 }
+
+}  // namespace nest
 
 #endif

@@ -32,17 +32,15 @@
 #include "numerics.h"
 #include "universal_data_logger_impl.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
+namespace nest
+{
 /* ----------------------------------------------------------------
  * Recordables map
  * ---------------------------------------------------------------- */
 
-nest::RecordablesMap< nest::iaf_psc_exp_htum > nest::iaf_psc_exp_htum::recordablesMap_;
+RecordablesMap< iaf_psc_exp_htum > iaf_psc_exp_htum::recordablesMap_;
 
-namespace nest
-{
 void
 register_iaf_psc_exp_htum( const std::string& name )
 {
@@ -60,27 +58,26 @@ RecordablesMap< iaf_psc_exp_htum >::create()
   insert_( names::I_syn_ex, &iaf_psc_exp_htum::get_I_syn_ex_ );
   insert_( names::I_syn_in, &iaf_psc_exp_htum::get_I_syn_in_ );
 }
-}
 
 /* ----------------------------------------------------------------
  * Default constructors defining default parameters and state
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_exp_htum::Parameters_::Parameters_()
-  : Tau_( 10.0 )             // in ms
-  , C_( 250.0 )              // in pF
-  , tau_ref_tot_( 2.0 )      // in ms
-  , tau_ref_abs_( 2.0 )      // in ms
-  , E_L_( -70.0 )            // in mV
-  , I_e_( 0.0 )              // in pA
-  , Theta_( -55.0 - E_L_ )   // relative E_L_
-  , V_reset_( -70.0 - E_L_ ) // in mV
-  , tau_ex_( 2.0 )           // in ms
-  , tau_in_( 2.0 )           // in ms
+iaf_psc_exp_htum::Parameters_::Parameters_()
+  : Tau_( 10.0 )              // in ms
+  , C_( 250.0 )               // in pF
+  , tau_ref_tot_( 2.0 )       // in ms
+  , tau_ref_abs_( 2.0 )       // in ms
+  , E_L_( -70.0 )             // in mV
+  , I_e_( 0.0 )               // in pA
+  , Theta_( -55.0 - E_L_ )    // relative E_L_
+  , V_reset_( -70.0 - E_L_ )  // in mV
+  , tau_ex_( 2.0 )            // in ms
+  , tau_in_( 2.0 )            // in ms
 {
 }
 
-nest::iaf_psc_exp_htum::State_::State_()
+iaf_psc_exp_htum::State_::State_()
   : i_0_( 0.0 )
   , i_syn_ex_( 0.0 )
   , i_syn_in_( 0.0 )
@@ -95,30 +92,30 @@ nest::iaf_psc_exp_htum::State_::State_()
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_exp_htum::Parameters_::get( DictionaryDatum& d ) const
+iaf_psc_exp_htum::Parameters_::get( Dictionary& d ) const
 {
-  def< double >( d, names::E_L, E_L_ ); // Resting potential
-  def< double >( d, names::I_e, I_e_ );
-  def< double >( d, names::V_th, Theta_ + E_L_ ); // threshold value
-  def< double >( d, names::V_reset, V_reset_ + E_L_ );
-  def< double >( d, names::C_m, C_ );
-  def< double >( d, names::tau_m, Tau_ );
-  def< double >( d, names::tau_syn_ex, tau_ex_ );
-  def< double >( d, names::tau_syn_in, tau_in_ );
-  def< double >( d, names::t_ref_abs, tau_ref_abs_ );
-  def< double >( d, names::t_ref_tot, tau_ref_tot_ );
+  d[ names::E_L ] = E_L_;  // Resting potential
+  d[ names::I_e ] = I_e_;
+  d[ names::V_th ] = Theta_ + E_L_;  // threshold value
+  d[ names::V_reset ] = V_reset_ + E_L_;
+  d[ names::C_m ] = C_;
+  d[ names::tau_m ] = Tau_;
+  d[ names::tau_syn_ex ] = tau_ex_;
+  d[ names::tau_syn_in ] = tau_in_;
+  d[ names::t_ref_abs ] = tau_ref_abs_;
+  d[ names::t_ref_tot ] = tau_ref_tot_;
 }
 
 double
-nest::iaf_psc_exp_htum::Parameters_::set( const DictionaryDatum& d, Node* node )
+iaf_psc_exp_htum::Parameters_::set( const Dictionary& d, Node* node )
 {
   // if E_L_ is changed, we need to adjust all variables defined relative to
   // E_L_
   const double ELold = E_L_;
-  updateValueParam< double >( d, names::E_L, E_L_, node );
+  update_value_param( d, names::E_L, E_L_, node );
   const double delta_EL = E_L_ - ELold;
 
-  if ( updateValueParam< double >( d, names::V_reset, V_reset_, node ) )
+  if ( update_value_param( d, names::V_reset, V_reset_, node ) )
   {
     V_reset_ -= E_L_;
   }
@@ -127,7 +124,7 @@ nest::iaf_psc_exp_htum::Parameters_::set( const DictionaryDatum& d, Node* node )
     V_reset_ -= delta_EL;
   }
 
-  if ( updateValueParam< double >( d, names::V_th, Theta_, node ) )
+  if ( update_value_param( d, names::V_th, Theta_, node ) )
   {
     Theta_ -= E_L_;
   }
@@ -136,13 +133,13 @@ nest::iaf_psc_exp_htum::Parameters_::set( const DictionaryDatum& d, Node* node )
     Theta_ -= delta_EL;
   }
 
-  updateValueParam< double >( d, names::I_e, I_e_, node );
-  updateValueParam< double >( d, names::C_m, C_, node );
-  updateValueParam< double >( d, names::tau_m, Tau_, node );
-  updateValueParam< double >( d, names::tau_syn_ex, tau_ex_, node );
-  updateValueParam< double >( d, names::tau_syn_in, tau_in_, node );
-  updateValueParam< double >( d, names::t_ref_abs, tau_ref_abs_, node );
-  updateValueParam< double >( d, names::t_ref_tot, tau_ref_tot_, node );
+  update_value_param( d, names::I_e, I_e_, node );
+  update_value_param( d, names::C_m, C_, node );
+  update_value_param( d, names::tau_m, Tau_, node );
+  update_value_param( d, names::tau_syn_ex, tau_ex_, node );
+  update_value_param( d, names::tau_syn_in, tau_in_, node );
+  update_value_param( d, names::t_ref_abs, tau_ref_abs_, node );
+  update_value_param( d, names::t_ref_tot, tau_ref_tot_, node );
   if ( V_reset_ >= Theta_ )
   {
     throw BadProperty( "Reset potential must be smaller than threshold." );
@@ -166,15 +163,15 @@ nest::iaf_psc_exp_htum::Parameters_::set( const DictionaryDatum& d, Node* node )
 }
 
 void
-nest::iaf_psc_exp_htum::State_::get( DictionaryDatum& d, const Parameters_& p ) const
+iaf_psc_exp_htum::State_::get( Dictionary& d, const Parameters_& p ) const
 {
-  def< double >( d, names::V_m, V_m_ + p.E_L_ ); // Membrane potential
+  d[ names::V_m ] = V_m_ + p.E_L_;  // Membrane potential
 }
 
 void
-nest::iaf_psc_exp_htum::State_::set( const DictionaryDatum& d, const Parameters_& p, double delta_EL, Node* node )
+iaf_psc_exp_htum::State_::set( const Dictionary& d, const Parameters_& p, double delta_EL, Node* node )
 {
-  if ( updateValueParam< double >( d, names::V_m, V_m_, node ) )
+  if ( update_value_param( d, names::V_m, V_m_, node ) )
   {
     V_m_ -= p.E_L_;
   }
@@ -184,12 +181,12 @@ nest::iaf_psc_exp_htum::State_::set( const DictionaryDatum& d, const Parameters_
   }
 }
 
-nest::iaf_psc_exp_htum::Buffers_::Buffers_( iaf_psc_exp_htum& n )
+iaf_psc_exp_htum::Buffers_::Buffers_( iaf_psc_exp_htum& n )
   : logger_( n )
 {
 }
 
-nest::iaf_psc_exp_htum::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_htum& n )
+iaf_psc_exp_htum::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_htum& n )
   : logger_( n )
 {
 }
@@ -198,7 +195,7 @@ nest::iaf_psc_exp_htum::Buffers_::Buffers_( const Buffers_&, iaf_psc_exp_htum& n
  * Default and copy constructor for node
  * ---------------------------------------------------------------- */
 
-nest::iaf_psc_exp_htum::iaf_psc_exp_htum()
+iaf_psc_exp_htum::iaf_psc_exp_htum()
   : ArchivingNode()
   , P_()
   , S_()
@@ -207,7 +204,7 @@ nest::iaf_psc_exp_htum::iaf_psc_exp_htum()
   recordablesMap_.create();
 }
 
-nest::iaf_psc_exp_htum::iaf_psc_exp_htum( const iaf_psc_exp_htum& n )
+iaf_psc_exp_htum::iaf_psc_exp_htum( const iaf_psc_exp_htum& n )
   : ArchivingNode( n )
   , P_( n.P_ )
   , S_( n.S_ )
@@ -220,17 +217,17 @@ nest::iaf_psc_exp_htum::iaf_psc_exp_htum( const iaf_psc_exp_htum& n )
  * ---------------------------------------------------------------- */
 
 void
-nest::iaf_psc_exp_htum::init_buffers_()
+iaf_psc_exp_htum::init_buffers_()
 {
-  B_.spikes_ex_.clear(); // includes resize
-  B_.spikes_in_.clear(); // includes resize
-  B_.currents_.clear();  // includes resize
-  B_.logger_.reset();    // includes resize
+  B_.spikes_ex_.clear();  // includes resize
+  B_.spikes_in_.clear();  // includes resize
+  B_.currents_.clear();   // includes resize
+  B_.logger_.reset();     // includes resize
   ArchivingNode::clear_history();
 }
 
 void
-nest::iaf_psc_exp_htum::pre_run_hook()
+iaf_psc_exp_htum::pre_run_hook()
 {
   B_.logger_.init();
 
@@ -296,13 +293,13 @@ nest::iaf_psc_exp_htum::pre_run_hook()
 }
 
 void
-nest::iaf_psc_exp_htum::update( Time const& origin, const long from, const long to )
+iaf_psc_exp_htum::update( Time const& origin, const long from, const long to )
 {
   // evolve from timestep 'from' to timestep 'to' with steps of h each
   for ( long lag = from; lag < to; ++lag )
   {
 
-    if ( S_.r_abs_ == 0 ) // neuron not refractory, so evolve V
+    if ( S_.r_abs_ == 0 )  // neuron not refractory, so evolve V
     {
       S_.V_m_ =
         S_.V_m_ * V_.P22_ + S_.i_syn_ex_ * V_.P21ex_ + S_.i_syn_in_ * V_.P21in_ + ( P_.I_e_ + S_.i_0_ ) * V_.P20_;
@@ -323,7 +320,7 @@ nest::iaf_psc_exp_htum::update( Time const& origin, const long from, const long 
 
     if ( S_.r_tot_ == 0 )
     {
-      if ( S_.V_m_ >= P_.Theta_ ) // threshold crossing
+      if ( S_.V_m_ >= P_.Theta_ )  // threshold crossing
       {
         S_.r_abs_ = V_.RefractoryCountsAbs_;
         S_.r_tot_ = V_.RefractoryCountsTot_;
@@ -351,7 +348,7 @@ nest::iaf_psc_exp_htum::update( Time const& origin, const long from, const long 
 }
 
 void
-nest::iaf_psc_exp_htum::handle( SpikeEvent& e )
+iaf_psc_exp_htum::handle( SpikeEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -368,7 +365,7 @@ nest::iaf_psc_exp_htum::handle( SpikeEvent& e )
 }
 
 void
-nest::iaf_psc_exp_htum::handle( CurrentEvent& e )
+iaf_psc_exp_htum::handle( CurrentEvent& e )
 {
   assert( e.get_delay_steps() > 0 );
 
@@ -380,7 +377,9 @@ nest::iaf_psc_exp_htum::handle( CurrentEvent& e )
 }
 
 void
-nest::iaf_psc_exp_htum::handle( DataLoggingRequest& e )
+iaf_psc_exp_htum::handle( DataLoggingRequest& e )
 {
   B_.logger_.handle( e );
 }
+
+}  // namespace nest

@@ -17,7 +17,7 @@ differences to the C++ API. The full example code is in the
 
 .. code-block:: python
 
-    #!/usr/bin/env python3
+    #!/usr/bin/env python
     import music
 
     [ ... ]
@@ -39,7 +39,7 @@ differences to the C++ API. The full example code is in the
         tickt = runtime.time()
 
 The sending code is almost completely identical to its C++ counterpart.
-Make sure ``python3`` is used as interpreter for the code (and make sure this
+Make sure ``python`` is used as interpreter for the code (and make sure this
 file is executable). Import ``music`` in the expected way.
 
 Unlike the C++ API, the index is not an object, but simply a label
@@ -100,5 +100,5 @@ C++.
 
 As the ``pymusic`` bindings are still quite new, the
 documentation is still lagging behind. This quick introduction should nevertheless be enough for you
-to get going with the bindings. Feel free to ask our `Mailing List <https://www.nest-initiative.org/mailinglist/>`_
+to get going with the bindings. Feel free to ask our `Mailing List <https://www.nest-simulator.org/mailinglist/>`_
 if you need further help.

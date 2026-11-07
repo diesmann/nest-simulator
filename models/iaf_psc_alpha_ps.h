@@ -42,6 +42,8 @@
 namespace nest
 {
 
+// Disable clang-formatting for documentation due to over-wide tables.
+// clang-format off
 /* BeginUserDocs: neuron, integrate-and-fire, current-based, precise, hard threshold
 
 Short description
@@ -58,25 +60,95 @@ Description
 
 ``iaf_psc_alpha_ps`` is the "canonical" implementation of the leaky
 integrate-and-fire model neuron with alpha-shaped postsynaptic
-currents in the sense of [1]_. This is the most exact implementation
-available.
+currents in the sense of :footcite:p:`Morrison2007a`, that is, the most exact implementation
+available. It is a leaky integrate-and-fire neuron model with
 
-PSCs are normalized to an amplitude of 1pA.
+* a hard threshold,
+* a fixed refractory period,
+* :math:`\alpha`-shaped synaptic input currents,
+* precise spike times based on the regula falsi method :footcite:p:`Morrison2007a`, :footcite:p:`Hanuschkin2010`.
+
+Membrane potential evolution, spike emission, and refractoriness
+................................................................
+
+The membrane potential evolves according to
+
+.. math::
+
+   \frac{dV_\text{m}}{dt} = -\frac{V_{\text{m}} - E_\text{L}}{\tau_{\text{m}}} + \frac{I_{\text{syn}} + I_\text{e}}{C_{\text{m}}}
+
+where the synaptic input current :math:`I_{\text{syn}}(t)` is discussed below and :math:`I_\text{e}` is
+a constant input current set as a model parameter.
+
+A spike is emitted when the membrane potential crosses the threshold :math:`V_\text{th}` from below;
+the precise time of the crossing is determined by a regula falsi method (see below). Subsequently,
+
+.. math::
+
+   V_\text{m}(t) = V_{\text{reset}} \quad\text{for}\quad t^* \leq t \leq t^* + t_{\text{ref}} \;,
+
+that is, the membrane potential is clamped to :math:`V_{\text{reset}}` during the refractory period.
+
+Synaptic input
+..............
+
+The synaptic input current has an excitatory and an inhibitory component,
+
+.. math::
+
+  I_{\text{syn}}(t) = I_{\text{syn, ex}}(t) + I_{\text{syn, in}}(t)
+
+where
+
+.. math::
+
+   I_{\text{syn, X}}(t) = \sum_{j} w_j \sum_k i_{\text{syn, X}}(t-t_j^k-d_j) \;,
+
+where :math:`j` indexes either excitatory (:math:`\text{X} = \text{ex}`)
+or inhibitory (:math:`\text{X} = \text{in}`) presynaptic neurons,
+:math:`k` indexes the spike times of neuron :math:`j`, and :math:`d_j`
+is the delay from neuron :math:`j`.
+
+The individual post-synaptic currents (PSCs) are given by
+
+.. math::
+
+   i_{\text{syn, X}}(t) = \frac{e}{\tau_{\text{syn, X}}} t e^{-\frac{t}{\tau_{\text{syn, X}}}} \Theta(t) \;,
+
+where :math:`\Theta(x)` is the Heaviside step function. The PSCs are normalized to unit maximum, that is,
+
+.. math::
+
+   i_{\text{syn, X}}(t= \tau_{\text{syn, X}}) = 1 \;.
+
+As a consequence, the total charge :math:`q` transferred by a single PSC depends
+on the synaptic time constant according to
+
+.. math::
+
+   q = \int_0^{\infty}  i_{\text{syn, X}}(t) dt = e \tau_{\text{syn, X}} \;.
+
+By default, :math:`V_\text{m}` is not bounded from below. To limit
+hyperpolarization to biophysically plausible values, set parameter
+:math:`V_{\text{min}}` as lower bound of :math:`V_\text{m}`.
+
+Precise implementation
+......................
 
 The precise implementation handles neuronal dynamics in a locally
 event-based manner with in coarse time grid defined by the minimum
-delay in the network, see [1]_. Incoming spikes are applied at the
+delay in the network, see :footcite:p:`Morrison2007a`. Incoming spikes are applied at the
 precise moment of their arrival, while the precise time of outgoing
 spikes is determined by a Regula Falsi method to approximate the timing
-of a threshold crossing [1]_ [3]_. Return from refractoriness occurs
+of a threshold crossing :footcite:p:`Morrison2007a` :footcite:p:`Hanuschkin2010`. Return from refractoriness occurs
 precisely at spike time plus refractory period.
 
 This implementation is more complex than the plain iaf_psc_alpha
-neuron, but achieves much higher precision. In particular, it does not
-suffer any binning of spike times to grid points. Depending on your
-application, the canonical application may provide superior overall
-performance given an accuracy goal; see [1]_ for details. Subthreshold
-dynamics are integrated using exact integration between events [2]_.
+neuron, but achieves much higher precision. In particular, spike times
+are not binned to the points of the simulation time grid. Depending on your
+application, the canonical implementation may provide superior overall
+performance given an accuracy goal; see :footcite:p:`Morrison2007a` for details. Subthreshold
+dynamics are integrated using exact integration between events :footcite:p:`Rotter1999`.
 
 This model transmits precise spike times to target nodes (on-grid spike
 time and offset). If this node is connected to a spike_recorder, the
@@ -89,9 +161,10 @@ can only change at on-grid times.
 
 .. note::
 
-  If `tau_m` is very close to `tau_syn_ex` or `tau_syn_in`, the model
-  will numerically behave as if `tau_m` is equal to `tau_syn_ex` or
-  `tau_syn_in`, respectively, to avoid numerical instabilities.
+  If :math:`\tau_{\text{m}}` is very close to :math:`\tau_{\text{syn, ex}}` or
+  :math:`\tau_{\text{syn, in}}`, the model will numerically behave as if :math:`\tau_{\text{m}}`
+  is equal to :math:`\tau_{\text{syn, ex}}` or :math:`\tau_{\text{syn, in}}`, respectively,
+  to avoid numerical instabilities.
 
   For implementation details see the
   `IAF Integration Singularity notebook <../model_details/IAF_Integration_Singularity.ipynb>`_.
@@ -99,37 +172,49 @@ can only change at on-grid times.
 For details about exact subthreshold integration, please see
 :doc:`../neurons/exact-integration`.
 
+.. note::
+
+   Incoming spikes are routed to the excitatory or inhibitory synapse by the **sign of the
+   connection weight**. A positive weight targets the excitatory synapse, a negative weight
+   the inhibitory one, and also sets the direction of the post-synaptic current.
+   Spike connections must use the default ``receptor_type`` of 0.
+
+   See :ref:`synapse_selection` for the conventions used by other models.
+
 Parameters
 ++++++++++
 
 The following parameters can be set in the status dictionary.
 
-===========  ======  ==========================================================
- V_m         mV      Membrane potential
- E_L         mV      Resting membrane potential
- V_min       mV      Absolute lower value for the membrane potential
- C_m         pF      Capacity of the membrane
- tau_m       ms      Membrane time constant
- t_ref       ms      Duration of refractory period
- V_th        mV      Spike threshold
- V_reset     mV      Reset potential of the membrane
- tau_syn_ex  ms      Rise time of the excitatory synaptic function
- tau_syn_in  ms      Rise time of the inhibitory synaptic function
- I_e         pA      Constant external input current
-===========  ======  ==========================================================
+=============== ================== =============================== ========================================================================
+**Parameter**   **Default**        **Math equivalent**             **Description**
+=============== ================== =============================== ========================================================================
+``E_L``         -70 mV             :math:`E_\text{L}`              Resting membrane potential
+``C_m``         250 pF             :math:`C_{\text{m}}`            Capacity of the membrane
+``tau_m``       10 ms              :math:`\tau_{\text{m}}`         Membrane time constant
+``t_ref``       2 ms               :math:`t_{\text{ref}}`          Duration of refractory period
+``V_th``        -55 mV             :math:`V_{\text{th}}`           Spike threshold
+``V_reset``     -70 mV             :math:`V_{\text{reset}}`        Reset potential of the membrane
+``tau_syn_ex``  2 ms               :math:`\tau_{\text{syn, ex}}`   Rise time of the excitatory synaptic current
+``tau_syn_in``  2 ms               :math:`\tau_{\text{syn, in}}`   Rise time of the inhibitory synaptic current
+``I_e``         0 pA               :math:`I_\text{e}`              Constant input current
+``V_min``       :math:`-\infty` mV :math:`V_{\text{min}}`          Absolute lower value for the membrane potential
+=============== ================== =============================== ========================================================================
+
+The following state variables evolve during simulation and are available either as neuron properties or as recordables.
+
+================== ================= ========================== =================================
+**State variable** **Initial value** **Math equivalent**        **Description**
+================== ================= ========================== =================================
+``V_m``            -70 mV            :math:`V_{\text{m}}`       Membrane potential
+``I_syn_ex``       0 pA              :math:`I_{\text{syn, ex}}` Excitatory synaptic input current
+``I_syn_in``       0 pA              :math:`I_{\text{syn, in}}` Inhibitory synaptic input current
+================== ================= ========================== =================================
 
 References
 ++++++++++
 
-.. [1] Morrison A, Straube S, Plesser H E, & Diesmann M (2006) Exact Subthreshold
-       Integration with Continuous Spike Times in Discrete Time Neural Network
-       Simulations. To appear in Neural Computation.
-.. [2] Rotter S & Diesmann M (1999) Exact simulation of time-invariant linear
-       systems with applications to neuronal modeling. Biologial Cybernetics
-       81:381-402.
-.. [3] Hanuschkin A, Kunkel S, Helias M, Morrison A & Diesmann M (2010)
-       A general and efficient method for incorporating exact spike times in
-       globally time-driven simulations Front Neuroinformatics, 4:113
+.. footbibliography::
 
 Sends
 +++++
@@ -152,6 +237,7 @@ Examples using this model
 .. listexamples:: iaf_psc_alpha_ps
 
 EndUserDocs */
+// clang-format on
 
 void register_iaf_psc_alpha_ps( const std::string& name );
 
@@ -195,10 +281,10 @@ public:
   is_off_grid() const override
   {
     return true;
-  } // uses off_grid events
+  }  // uses off_grid events
 
-  void get_status( DictionaryDatum& ) const override;
-  void set_status( const DictionaryDatum& ) override;
+  void get_status( Dictionary& ) const override;
+  void set_status( const Dictionary& ) override;
 
   /**
    * Based on the current state, compute the value of the membrane potential
@@ -322,14 +408,14 @@ private:
      */
     double U_reset_;
 
-    Parameters_(); //!< Sets default parameter values
+    Parameters_();  //!< Sets default parameter values
 
-    void get( DictionaryDatum& ) const; //!< Store current values in dictionary
+    void get( Dictionary& ) const;  //!< Store current values in dictionary
 
     /** Set values from dictionary.
      * @returns Change in reversal potential E_L, to be passed to State_::set()
      */
-    double set( const DictionaryDatum&, Node* );
+    double set( const Dictionary&, Node* );
   };
 
   // ----------------------------------------------------------------
@@ -339,26 +425,26 @@ private:
    */
   struct State_
   {
-    double y_input_;           //!< external input current
-    double I_ex_;              //!< alpha current, first component
-    double dI_ex_;             //!< alpha current, second component
-    double I_in_;              //!< alpha current, first component
-    double dI_in_;             //!< alpha current, second component
-    double V_m_;               //!< Membrane pot. rel. to resting pot. E_L_.
-    bool is_refractory_;       //!< true while refractory
-    long last_spike_step_;     //!< time stamp of most recent spike
-    double last_spike_offset_; //!< offset of most recent spike
+    double y_input_;            //!< external input current
+    double I_ex_;               //!< alpha current, first component
+    double dI_ex_;              //!< alpha current, second component
+    double I_in_;               //!< alpha current, first component
+    double dI_in_;              //!< alpha current, second component
+    double V_m_;                //!< Membrane pot. rel. to resting pot. E_L_.
+    bool is_refractory_;        //!< true while refractory
+    long last_spike_step_;      //!< time stamp of most recent spike
+    double last_spike_offset_;  //!< offset of most recent spike
 
-    State_(); //!< Default initialization
+    State_();  //!< Default initialization
 
-    void get( DictionaryDatum&, const Parameters_& ) const;
+    void get( Dictionary&, const Parameters_& ) const;
 
     /** Set values from dictionary.
      * @param dictionary to take data from
      * @param current parameters
      * @param Change in reversal potential E_L specified by this dict
      */
-    void set( const DictionaryDatum&, const Parameters_&, double, Node* );
+    void set( const Dictionary&, const Parameters_&, double, Node* );
   };
 
   // ----------------------------------------------------------------
@@ -389,28 +475,28 @@ private:
    */
   struct Variables_
   {
-    double h_ms_;           //!< time resolution in ms
-    double psc_norm_ex_;    //!< e / tau_syn_ex
-    double psc_norm_in_;    //!< e / tau_syn_in
-    long refractory_steps_; //!< refractory time in steps
-    double expm1_tau_m_;    //!< exp(-h/tau_m) - 1
-    double exp_tau_syn_ex_; //!< exp(-h/tau_syn_ex)
-    double exp_tau_syn_in_; //!< exp(-h/tau_syn_in)
-    double P30_;            //!< progagator matrix elem, 3rd row
-    double P31_ex_;         //!< progagator matrix elem, 3rd row (ex)
-    double P32_ex_;         //!< progagator matrix elem, 3rd row (ex)
-    double P31_in_;         //!< progagator matrix elem, 3rd row (in)
-    double P32_in_;         //!< progagator matrix elem, 3rd row (in)
-    double y_input_before_; //!< at beginning of mini-step
-    double I_ex_before_;    //!< at beginning of mini-step
-    double I_in_before_;    //!< at beginning of mini-step
-    double dI_ex_before_;   //!< at beginning of mini-step
-    double dI_in_before_;   //!< at beginning of mini-step
-    double V_m_before_;     //!< at beginning of mini-step
-    double inv_tau_m_;      //!< 1 / tau_m
-    double inv_tau_syn_ex_; //!< 1 / tau_syn_ex
-    double inv_tau_syn_in_; //!< 1 / tau_syn_in
-    double inv_c_m_;        //!< 1 / c_m
+    double h_ms_;            //!< time resolution in ms
+    double psc_norm_ex_;     //!< e / tau_syn_ex
+    double psc_norm_in_;     //!< e / tau_syn_in
+    long refractory_steps_;  //!< refractory time in steps
+    double expm1_tau_m_;     //!< exp(-h/tau_m) - 1
+    double exp_tau_syn_ex_;  //!< exp(-h/tau_syn_ex)
+    double exp_tau_syn_in_;  //!< exp(-h/tau_syn_in)
+    double P30_;             //!< progagator matrix elem, 3rd row
+    double P31_ex_;          //!< progagator matrix elem, 3rd row (ex)
+    double P32_ex_;          //!< progagator matrix elem, 3rd row (ex)
+    double P31_in_;          //!< progagator matrix elem, 3rd row (in)
+    double P32_in_;          //!< progagator matrix elem, 3rd row (in)
+    double y_input_before_;  //!< at beginning of mini-step
+    double I_ex_before_;     //!< at beginning of mini-step
+    double I_in_before_;     //!< at beginning of mini-step
+    double dI_ex_before_;    //!< at beginning of mini-step
+    double dI_in_before_;    //!< at beginning of mini-step
+    double V_m_before_;      //!< at beginning of mini-step
+    double inv_tau_m_;       //!< 1 / tau_m
+    double inv_tau_syn_ex_;  //!< 1 / tau_syn_ex
+    double inv_tau_syn_in_;  //!< 1 / tau_syn_in
+    double inv_c_m_;         //!< 1 / c_m
   };
 
   // Access functions for UniversalDataLogger -------------------------------
@@ -469,7 +555,7 @@ private:
 };
 
 inline size_t
-nest::iaf_psc_alpha_ps::send_test_event( Node& target, size_t receptor_type, synindex, bool )
+iaf_psc_alpha_ps::send_test_event( Node& target, size_t receptor_type, synindex, bool )
 {
   SpikeEvent e;
   e.set_sender( *this );
@@ -507,22 +593,22 @@ iaf_psc_alpha_ps::handles_test_event( DataLoggingRequest& dlr, size_t receptor_t
 }
 
 inline void
-iaf_psc_alpha_ps::get_status( DictionaryDatum& d ) const
+iaf_psc_alpha_ps::get_status( Dictionary& d ) const
 {
   P_.get( d );
   S_.get( d, P_ );
   ArchivingNode::get_status( d );
 
-  ( *d )[ names::recordables ] = recordablesMap_.get_list();
+  d[ names::recordables ] = recordablesMap_.get_list();
 }
 
 inline void
-iaf_psc_alpha_ps::set_status( const DictionaryDatum& d )
+iaf_psc_alpha_ps::set_status( const Dictionary& d )
 {
-  Parameters_ ptmp = P_;                       // temporary copy in case of errors
-  const double delta_EL = ptmp.set( d, this ); // throws if BadProperty
-  State_ stmp = S_;                            // temporary copy in case of errors
-  stmp.set( d, ptmp, delta_EL, this );         // throws if BadProperty
+  Parameters_ ptmp = P_;                        // temporary copy in case of errors
+  const double delta_EL = ptmp.set( d, this );  // throws if BadProperty
+  State_ stmp = S_;                             // temporary copy in case of errors
+  stmp.set( d, ptmp, delta_EL, this );          // throws if BadProperty
 
   // We now know that (ptmp, stmp) are consistent. We do not
   // write them back to (P_, S_) before we are also sure that
@@ -535,6 +621,6 @@ iaf_psc_alpha_ps::set_status( const DictionaryDatum& d )
   S_ = stmp;
 }
 
-} // namespace
+}  // namespace
 
-#endif // IAF_PSC_ALPHA_PS_H
+#endif  // IAF_PSC_ALPHA_PS_H

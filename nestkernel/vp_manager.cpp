@@ -34,10 +34,10 @@
 #include "mpi_manager_impl.h"
 #include "vp_manager_impl.h"
 
-// Includes from sli:
-#include "dictutils.h"
 
-nest::VPManager::VPManager()
+namespace nest
+{
+VPManager::VPManager()
 #ifdef _OPENMP
   : force_singlethreading_( false )
 #else
@@ -48,7 +48,7 @@ nest::VPManager::VPManager()
 }
 
 void
-nest::VPManager::initialize( const bool adjust_number_of_threads_or_rng_only )
+VPManager::initialize( const bool adjust_number_of_threads_or_rng_only )
 {
   if ( adjust_number_of_threads_or_rng_only )
   {
@@ -71,19 +71,19 @@ nest::VPManager::initialize( const bool adjust_number_of_threads_or_rng_only )
     std::string msg = "OMP_NUM_THREADS is set in your environment, but NEST ignores it.\n";
     msg += "For details, see the Guide to parallel computing in the NEST Documentation.";
 
-    LOG( M_INFO, "VPManager::initialize()", msg );
+    LOG( VerbosityLevel::INFO, "VPManager::initialize()", msg );
   }
 
   set_num_threads( 1 );
 }
 
 void
-nest::VPManager::finalize( const bool )
+VPManager::finalize( const bool )
 {
 }
 
 size_t
-nest::VPManager::get_OMP_NUM_THREADS() const
+VPManager::get_OMP_NUM_THREADS() const
 {
   const char* const omp_num_threads = std::getenv( "OMP_NUM_THREADS" );
   if ( omp_num_threads )
@@ -97,13 +97,13 @@ nest::VPManager::get_OMP_NUM_THREADS() const
 }
 
 void
-nest::VPManager::set_status( const DictionaryDatum& d )
+VPManager::set_status( const Dictionary& d )
 {
   size_t n_threads = get_num_threads();
   size_t n_vps = get_num_virtual_processes();
 
-  bool n_threads_updated = updateValue< long >( d, names::local_num_threads, n_threads );
-  bool n_vps_updated = updateValue< long >( d, names::total_num_virtual_procs, n_vps );
+  bool n_threads_updated = d.update_integer_value( names::local_num_threads, n_threads );
+  bool n_vps_updated = d.update_integer_value( names::total_num_virtual_procs, n_vps );
 
   if ( n_vps_updated )
   {
@@ -169,7 +169,7 @@ nest::VPManager::set_status( const DictionaryDatum& d )
     {
       std::string msg = "OMP_NUM_THREADS is set in your environment, but NEST ignores it.\n";
       msg += "For details, see the Guide to parallel computing in the NEST Documentation.";
-      LOG( M_WARNING, "VPManager::set_status()", msg );
+      LOG( VerbosityLevel::WARNING, "VPManager::set_status()", msg );
     }
 
     kernel().change_number_of_threads( n_threads );
@@ -177,14 +177,14 @@ nest::VPManager::set_status( const DictionaryDatum& d )
 }
 
 void
-nest::VPManager::get_status( DictionaryDatum& d )
+VPManager::get_status( Dictionary& d )
 {
-  def< long >( d, names::local_num_threads, get_num_threads() );
-  def< long >( d, names::total_num_virtual_procs, get_num_virtual_processes() );
+  d[ names::local_num_threads ] = static_cast< long >( get_num_threads() );
+  d[ names::total_num_virtual_procs ] = static_cast< long >( get_num_virtual_processes() );
 }
 
 void
-nest::VPManager::set_num_threads( size_t n_threads )
+VPManager::set_num_threads( size_t n_threads )
 {
   assert( not( kernel().sp_manager.is_structural_plasticity_enabled() and n_threads > 1 ) );
   n_threads_ = n_threads;
@@ -193,3 +193,5 @@ nest::VPManager::set_num_threads( size_t n_threads )
   omp_set_num_threads( n_threads_ );
 #endif
 }
+
+}  // namespace nest

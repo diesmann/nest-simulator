@@ -25,16 +25,19 @@
 
 #include "ring_buffer.h"
 
+namespace nest
+{
+
 template < unsigned int num_channels >
-nest::MultiChannelInputBuffer< num_channels >::MultiChannelInputBuffer()
+MultiChannelInputBuffer< num_channels >::MultiChannelInputBuffer()
   : buffer_( kernel().connection_manager.get_min_delay() + kernel().connection_manager.get_max_delay(),
-    std::array< double, num_channels >() )
+      std::array< double, num_channels >() )
 {
 }
 
 template < unsigned int num_channels >
 void
-nest::MultiChannelInputBuffer< num_channels >::resize()
+MultiChannelInputBuffer< num_channels >::resize()
 {
   const size_t size = kernel().connection_manager.get_min_delay() + kernel().connection_manager.get_max_delay();
   if ( buffer_.size() != size )
@@ -45,14 +48,16 @@ nest::MultiChannelInputBuffer< num_channels >::resize()
 
 template < unsigned int num_channels >
 void
-nest::MultiChannelInputBuffer< num_channels >::clear()
+MultiChannelInputBuffer< num_channels >::clear()
 {
-  resize(); // does nothing if size is fine
+  resize();  // does nothing if size is fine
   // set all elements to 0.0
   for ( size_t slot = 0; slot < buffer_.size(); ++slot )
   {
     reset_values_all_channels( slot );
   }
 }
+
+}  // namespace nest
 
 #endif
