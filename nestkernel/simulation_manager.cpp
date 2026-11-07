@@ -532,6 +532,11 @@ SimulationManager::prepare()
   t_slice_begin_ = timeval();  // set to timeval{0, 0} as unset flag
   t_slice_end_ = timeval();    // set to timeval{0, 0} as unset flag
 
+  // update_delay_extrema_() below and update_() decide on each rank from these flags whether to enter MPI
+  // collectives; all ranks must agree. Checked once per Simulate() in builds with assertions.
+  assert( kernel().mpi_manager.equal_cross_ranks(
+    kernel().node_manager.have_nodes_changed() + 2 * kernel().connection_manager.connections_have_changed() ) );
+
   // find shortest and longest delay across all MPI processes
   // this call sets the member variables
   kernel().connection_manager.update_delay_extrema_();
