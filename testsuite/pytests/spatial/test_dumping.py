@@ -65,6 +65,7 @@ class DumpingTestCase(unittest.TestCase):
         filename = os.path.join(self.nest_tmpdir(), "test_DumpConns.out.cnn")
         nest.DumpLayerConnections(spatial_nodes, spatial_nodes, "static_synapse", filename)
         npa = np.genfromtxt(filename)
+        npa = npa[np.lexsort((npa[:, 1], npa[:, 0]))]  # order of the connection tables changes with Simulate()
         reference = np.array(
             [
                 [1.0, 1.0, 1.0, 1.0, 0.0, 0.0],

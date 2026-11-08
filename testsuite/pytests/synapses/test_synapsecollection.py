@@ -35,6 +35,18 @@ except ImportError:
     HAVE_PANDAS = False
 
 
+def rows(values):
+    """
+    Return the connections of a dict of lists as sorted tuples of all values but the port.
+
+    GetConnections() lists connections in the order of the connection tables, which changes when Simulate() sorts
+    them; the port depends on that order as well.
+    """
+
+    keys = sorted(k for k in values if k != "port")
+    return sorted(zip(*(values[k] for k in keys)))
+
+
 class TestSynapseCollection(unittest.TestCase):
     """SynapseCollection tests"""
 
@@ -56,8 +68,7 @@ class TestSynapseCollection(unittest.TestCase):
         sources = get_conns.get("source")
         targets = get_conns.get("target")
 
-        self.assertEqual(sources, [1, 1, 2, 2])
-        self.assertEqual(targets, [1, 2, 1, 2])
+        self.assertEqual(sorted(zip(sources, targets)), [(1, 1), (1, 2), (2, 1), (2, 2)])
 
     def test_get_set(self):
         """
@@ -139,9 +150,10 @@ class TestSynapseCollection(unittest.TestCase):
             "weight": [1.0, 1.0, 1.0, 1.0],
         }
 
-        self.assertEqual(target, target_ref)
-        self.assertEqual(dpw, dpw_ref)
-        self.assertEqual(all_values, all_ref)
+        self.assertEqual(sorted(target), sorted(target_ref))
+        self.assertEqual(rows(dpw), rows(dpw_ref))
+        self.assertEqual(sorted(dpw["port"]), dpw_ref["port"])
+        self.assertEqual(rows(all_values), rows(all_ref))
 
         # Now try the same with a single connection
         nest.ResetKernel()
@@ -209,8 +221,7 @@ class TestSynapseCollection(unittest.TestCase):
         sources = get_conns.get("source")
         targets = get_conns.get("target")
 
-        self.assertEqual(sources, [4, 4, 4, 5, 5, 5, 6, 6, 6])
-        self.assertEqual(targets.sort(), [3, 5, 7, 3, 5, 7, 3, 5, 7].sort())
+        self.assertEqual(sorted(zip(sources, targets)), [(s, t) for s in (4, 5, 6) for t in (3, 5, 7)])
 
         nest.ResetKernel()
 
@@ -264,9 +275,9 @@ class TestSynapseCollection(unittest.TestCase):
         targets_2 = get_conn_2.get("target")
         targets_3 = get_conn_3.get("target")
 
-        self.assertEqual(sources_1, [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4])
+        self.assertEqual(sorted(sources_1), [1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4])
         self.assertEqual(sources_2, [6, 7])
-        self.assertEqual(sources_3, [8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10])
+        self.assertEqual(sorted(sources_3), [8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 10, 10, 10, 10, 10])
         self.assertEqual(targets_1.sort(), [3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6, 3, 4, 5, 6].sort())
         self.assertEqual(targets_2, [9, 10])
         self.assertEqual(targets_3.sort(), [1, 2, 3, 4, 5, 1, 2, 3, 4, 5, 1, 2, 3, 4, 5].sort())
@@ -332,19 +343,16 @@ class TestSynapseCollection(unittest.TestCase):
                 "target_thread": [0, 0, 0, 0],
                 "weight": [1.0, 1.0, 1.0, 1.0],
             },
-            index=conns.get("source"),
         )
-        self.assertTrue(conns_val.equals(pnds_ref))
+        self.assertEqual(rows(conns_val.to_dict("list")), rows(pnds_ref.to_dict("list")))
+        self.assertEqual(list(conns_val.index), conns.get("source"))
 
         conns_target = conns.get("target", output="pandas")
         conns_sizeof_port = conns.get(["sizeof", "port"], output="pandas")
 
-        self.assertTrue(conns_target.equals(pandas.DataFrame({"target": [1, 2, 1, 2]}, index=conns.get("source"))))
-        self.assertTrue(
-            conns_sizeof_port.equals(
-                pandas.DataFrame({"sizeof": [32, 32, 32, 32], "port": [0, 1, 2, 3]}, index=conns.get("source"))
-            )
-        )
+        self.assertEqual(sorted(zip(conns_target.index, conns_target["target"])), [(1, 1), (1, 2), (2, 1), (2, 2)])
+        self.assertEqual(list(conns_sizeof_port["sizeof"]), [32, 32, 32, 32])
+        self.assertEqual(sorted(conns_sizeof_port["port"]), [0, 1, 2, 3])
 
     def test_empty(self):
         """
@@ -389,7 +397,11 @@ class TestSynapseCollection(unittest.TestCase):
         )
 
         conns = nest.GetConnections()
-        self.assertEqual(ref_str, str(conns))
+        # header lines first, then the connections of each synapse model in the order of the connection tables
+        lines = str(conns).split("\n")
+        ref_lines = ref_str.split("\n")
+        self.assertEqual(lines[:2], ref_lines[:2])
+        self.assertEqual(sorted(lines[2:]), sorted(ref_lines[2:]))
 
     def test_empty_string(self):
         """
