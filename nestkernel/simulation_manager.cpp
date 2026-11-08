@@ -551,6 +551,16 @@ SimulationManager::prepare()
   kernel().node_manager.update_thread_local_node_data();
   kernel().node_manager.prepare_nodes();
 
+  // Nodes created after a Simulate() that ended inside a slice are updated, and can spike, before the connection
+  // infrastructure is rebuilt at the start of the next slice; the target table must have their entries by then.
+  if ( simulated_ and kernel().node_manager.have_nodes_changed() )
+  {
+#pragma omp parallel
+    {
+      kernel().connection_manager.prepare_target_table( kernel().vp_manager.get_thread_id() );
+    }
+  }
+
   // we have to do enter_runtime after prepare_nodes, since we use
   // calibrate to map the ports of MUSIC devices, which has to be done
   // before enter_runtime
