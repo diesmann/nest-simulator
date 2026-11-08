@@ -503,9 +503,11 @@ private:
   /**
    * Update delay extrema to current values.
    *
+   * @param communicate_anew Recompute and communicate the extrema even if they have been communicated since the
+   *                         last change of connections.
    * @note This entails MPI communication.
    */
-  void update_delay_extrema_();
+  void update_delay_extrema_( const bool communicate_anew = false );
 
   /**
    * This method queries and finds the minimum delay
@@ -680,6 +682,16 @@ private:
 
   //! true if GetConnections has been called.
   bool get_connections_has_been_called_;
+
+  /**
+   * True once update_delay_extrema_() has communicated the extrema after the last change of connections.
+   *
+   * connections_have_changed_ stays true until the connection infrastructure is rebuilt in the next Simulate(). The
+   * extrema are communicated by the first call after a change, GetConnections() or Prepare(), and kept by later
+   * calls, so that GetKernelStatus() on a subset of ranks does not enter a collective. Prepare() communicates anew,
+   * to include delays changed by SetStatus() on synapses.
+   */
+  bool delay_extrema_communicated_;
 
   /**
    *  Whether to use spike compression; if a neuron has targets on

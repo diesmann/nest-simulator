@@ -73,6 +73,7 @@ ConnectionManager::ConnectionManager()
   , keep_source_table_( true )
   , connections_have_changed_( false )
   , get_connections_has_been_called_( false )
+  , delay_extrema_communicated_( false )
   , use_compressed_spikes_( true )
   , has_primary_connections_( false )
   , check_primary_connections_()
@@ -111,6 +112,7 @@ ConnectionManager::initialize( const bool adjust_number_of_threads_or_rng_only )
     keep_source_table_ = true;
     connections_have_changed_ = false;
     get_connections_has_been_called_ = false;
+    delay_extrema_communicated_ = false;
     use_compressed_spikes_ = true;
     stdp_eps_ = 1.0e-6;
     min_delay_ = max_delay_ = 1;
@@ -199,7 +201,7 @@ ConnectionManager::set_status( const Dictionary& d )
   //  Need to update the saved values if we have changed the delay bounds.
   if ( d.known( names::min_delay ) or d.known( names::max_delay ) )
   {
-    update_delay_extrema_();
+    update_delay_extrema_( true );
   }
 }
 
@@ -482,12 +484,18 @@ ConnectionManager::connect( NodeCollectionPTR sources,
 }
 
 void
-ConnectionManager::update_delay_extrema_()
+ConnectionManager::update_delay_extrema_( const bool communicate_anew )
 {
   if ( kernel().simulation_manager.has_been_simulated() )
   {
     // Once simulation has started, min/max_delay can no longer change,
     // so there is nothing to update.
+    return;
+  }
+
+  // Keep the communicated values; recomputing them from the local delay checkers would give rank-dependent extrema.
+  if ( delay_extrema_communicated_ and not communicate_anew and kernel().mpi_manager.get_num_processes() > 1 )
+  {
     return;
   }
 
@@ -519,6 +527,7 @@ ConnectionManager::update_delay_extrema_()
     max_delays[ kernel().mpi_manager.get_rank() ] = max_delay_;
     kernel().mpi_manager.communicate( max_delays );
     max_delay_ = *std::max_element( max_delays.begin(), max_delays.end() );
+    delay_extrema_communicated_ = true;
   }
 
   if ( min_delay_ == Time::pos_inf().get_steps() )
@@ -1113,22 +1122,9 @@ ConnectionManager::get_connections( const Dictionary& params )
     }
   }
 
-  // If connections have changed, (re-)build presynaptic infrastructure,
-  // as this may involve sorting connections by source node IDs.
-  if ( connections_have_changed() )
-  {
-    // TODO fix-3489: Note entirely sure if we need the next two calls here,
-    //                but ran into trouble when I took both out, I think
-
-    // We need to update min_delay because it is used by check_wfr_use() below
-    // to set secondary event data size.
-    update_delay_extrema_();
-
-    // Check whether waveform relaxation is used on any MPI process;
-    // needs to be called before update_connection_infrastructure since
-    // it resizes coefficient arrays for secondary events
-    kernel().node_manager.check_wfr_use();
-  }
+  // GetConnections() is called on all ranks: communicate the delay extrema here, see delay_extrema_communicated_.
+  // The connection infrastructure is updated only in Simulate() (#3489).
+  update_delay_extrema_();
 
   // We check, whether a synapse model is given. If not, we will iterate all.
   if ( params.known( names::synapse_model ) )
@@ -1760,6 +1756,7 @@ ConnectionManager::set_connections_have_changed()
   }
 
   connections_have_changed_ = true;
+  delay_extrema_communicated_ = false;
 }
 
 void
