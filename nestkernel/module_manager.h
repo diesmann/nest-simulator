@@ -27,8 +27,10 @@
 #include "config.h"
 
 // C++ includes:
+#include <cstdint>
 #include <map>
 #include <string>
+#include <tuple>
 
 // Includes from nestkernel:
 #include "manager_interface.h"
@@ -61,20 +63,41 @@ public:
   void install( const std::string& name );
 
 private:
+  //! Content of a module file: size and FNV-1a hash
+  using FileContent_ = std::tuple< std::size_t, std::uint64_t >;
+
+  //! Return size and content hash of the file at path
+  static FileContent_ file_content_( const std::string& path );
+
   struct ModuleMapEntry_
   {
     ModuleMapEntry_() = default;
-    ModuleMapEntry_( lt_dlhandle hndl, NESTExtensionInterface* ext )
+    ModuleMapEntry_( lt_dlhandle hndl, NESTExtensionInterface* ext, const std::string& p, const FileContent_& content )
       : handle( hndl )
       , extension( ext )
+      , path( p )
+      , file_content( content )
     {
     }
 
     lt_dlhandle handle;                 //!< required for unloading
     NESTExtensionInterface* extension;  //!< required for re-initizliation(), avoid re-casting handle
+    std::string path;                   //!< file the loader opened
+    FileContent_ file_content;          //!< content of that file when it was loaded
   };
 
   std::map< std::string, ModuleMapEntry_ > modules_;
+
+  /**
+   * Module files that remained in memory after unloading, with their content when loaded.
+   *
+   * Whether lt_dlclose() removes a library from memory depends on compiler and system: for example, glibc keeps a
+   * library that is the first to define a symbol of binding STB_GNU_UNIQUE (GCC: template static data members).
+   * Opening the file again then returns the resident library. install() therefore refuses a file whose content
+   * changed since it was loaded, as the resident code would silently replace the new one (#3802). The entries
+   * persist across ResetKernel().
+   */
+  std::map< std::string, FileContent_ > resident_;
 };
 }
 

@@ -34,6 +34,10 @@
 // Includes from thirdparty:
 #include "compose.hpp"
 
+// Includes from C/C++:
+#include <dlfcn.h>
+#include <fstream>
+
 
 namespace nest
 {
@@ -75,12 +79,39 @@ ModuleManager::finalize( const bool adjust_number_of_threads_or_rng_only )
     return;
   }
 
-  // unload all loaded modules
+  // unload all loaded modules and remember those the system keeps in memory
   for ( const auto& [ name, module_info ] : modules_ )
   {
     lt_dlclose( module_info.handle );
+#ifdef RTLD_NOLOAD
+    if ( void* resident = dlopen( module_info.path.c_str(), RTLD_LAZY | RTLD_NOLOAD ) )
+    {
+      dlclose( resident );
+      resident_[ module_info.path ] = module_info.file_content;
+    }
+    else
+    {
+      resident_.erase( module_info.path );
+    }
+#else
+    // without RTLD_NOLOAD the system cannot tell whether the library left memory; assume it did not
+    resident_[ module_info.path ] = module_info.file_content;
+#endif
   }
   modules_.clear();
+}
+
+ModuleManager::FileContent_
+ModuleManager::file_content_( const std::string& path )
+{
+  std::ifstream file( path, std::ios::binary );
+  std::uint64_t hash = 14695981039346656037ULL;
+  std::size_t size = 0;
+  for ( char c; file.get( c ); ++size )
+  {
+    hash = ( hash ^ static_cast< unsigned char >( c ) ) * 1099511628211ULL;
+  }
+  return { size, hash };
 }
 
 void
@@ -148,6 +179,19 @@ ModuleManager::install( const std::string& name )
     throw DynamicModuleManagementError( msg );
   }
 
+  // refuse a changed file whose earlier version the system kept in memory: the loader returned the old code
+  const std::string path = lt_dlgetinfo( hModule )->filename;
+  const auto file_content = file_content_( path );
+  if ( const auto res = resident_.find( path ); res != resident_.end() and res->second != file_content )
+  {
+    lt_dlclose( hModule );
+    lt_dlerror();
+    throw DynamicModuleManagementError( "Module file '" + path
+      + "' changed after an earlier version was loaded in this process, and the system kept that version in "
+        "memory. Installing it again would use the earlier version. Restart NEST, or install the changed module "
+        "under a new name." );
+  }
+
   // see if we can find the "module" symbol in the module
   NESTExtensionInterface* extension = reinterpret_cast< NESTExtensionInterface* >( lt_dlsym( hModule, "module" ) );
   char* errcstr = ( char* ) lt_dlerror();
@@ -176,7 +220,7 @@ ModuleManager::install( const std::string& name )
   }
 
   // add the handle to list of loaded modules
-  modules_[ name ] = ModuleMapEntry_( hModule, extension );
+  modules_[ name ] = ModuleMapEntry_( hModule, extension, path, file_content );
 
   LOG( VerbosityLevel::INFO, "Install", ( "loaded module " + name ).c_str() );
 }
