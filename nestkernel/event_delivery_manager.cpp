@@ -1124,9 +1124,8 @@ EventDeliveryManager::deliver_events_prefetch_( const size_t tid, const std::vec
     for ( size_t j = 0; j < num_remaining_entries; ++j )
     {
       // find the spike-data entry for this thread
-      const std::vector< SpikeData >& compressed_spike_data =
-        kernel().connection_manager.get_compressed_spike_data( syn_id_batch[ j ], lcid_batch[ j ] );
-      lcid_batch[ j ] = compressed_spike_data[ tid ].get_lcid();
+      lcid_batch[ j ] =
+        kernel().connection_manager.get_compressed_spike_data_lcid( tid, syn_id_batch[ j ], lcid_batch[ j ] );
     }
     for ( size_t j = 0; j < num_remaining_entries; ++j )
     {
@@ -1193,9 +1192,7 @@ EventDeliveryManager::deliver_batches_prefetch_( const size_t tid,
       syn_id[ slot ][ j ] = spike_data.get_syn_id();
       // for compressed spikes lcid holds the index in the compressed_spike_data structure
       lcid[ slot ][ j ] =
-        kernel()
-          .connection_manager.get_compressed_spike_data( syn_id[ slot ][ j ], spike_data.get_lcid() )[ tid ]
-          .get_lcid();
+        kernel().connection_manager.get_compressed_spike_data_lcid( tid, syn_id[ slot ][ j ], spike_data.get_lcid() );
       if ( lcid[ slot ][ j ] != invalid_lcid )
       {
         conn_manager.prefetch_connection( tid, syn_id[ slot ][ j ], lcid[ slot ][ j ] );
