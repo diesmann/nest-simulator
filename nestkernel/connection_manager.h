@@ -496,6 +496,21 @@ public:
    */
   const SpikeData& get_compressed_spike_data_entry( const size_t tid, const synindex syn_id, const size_t idx ) const;
 
+  /**
+   * Prefetch the header of row idx of the compressed spike data of synapse type syn_id.
+   *
+   * The header holds the address of the row; it has to be read before the entries can be prefetched. Hints for the
+   * processor without effect on the simulation, see EventDeliveryManager::deliver_events_prefetch_().
+   */
+  void prefetch_compressed_spike_data_row( const size_t tid, const synindex syn_id, const size_t idx ) const;
+
+  //! Prefetch the entry of thread tid in row idx of the compressed spike data; reads the header of the row.
+  void prefetch_compressed_spike_data_entry( const size_t tid, const synindex syn_id, const size_t idx ) const;
+
+  //! Prefetch the connection lcid of synapse type syn_id on thread tid.
+  void prefetch_connection( const size_t tid, const synindex syn_id, const size_t lcid ) const;
+
+
   //! Set iteration_state_ entries for all threads to beginning of compressed_spike_data_map_.
   void initialize_iteration_state();
 
@@ -1003,6 +1018,37 @@ inline size_t
 ConnectionManager::get_compressed_spike_data_lcid( const size_t tid, const synindex syn_id, const size_t idx ) const
 {
   return get_compressed_spike_data_entry( tid, syn_id, idx ).get_lcid();
+}
+
+inline void
+ConnectionManager::prefetch_compressed_spike_data_row( const size_t tid, const synindex syn_id, const size_t idx ) const
+{
+  if ( compressed_spike_data_blocks_.empty() )
+  {
+    __builtin_prefetch( &compressed_spike_data_[ syn_id ][ idx ] );
+    return;
+  }
+  __builtin_prefetch( &compressed_spike_data_blocks_[ compressed_spike_data_block_of_[ tid ] ][ syn_id ][ idx ] );
+}
+
+inline void
+ConnectionManager::prefetch_compressed_spike_data_entry( const size_t tid,
+  const synindex syn_id,
+  const size_t idx ) const
+{
+  if ( compressed_spike_data_blocks_.empty() )
+  {
+    __builtin_prefetch( compressed_spike_data_[ syn_id ][ idx ].data() + tid );
+    return;
+  }
+  __builtin_prefetch( compressed_spike_data_blocks_[ compressed_spike_data_block_of_[ tid ] ][ syn_id ][ idx ].data()
+    + compressed_spike_data_column_of_[ tid ] );
+}
+
+inline void
+ConnectionManager::prefetch_connection( const size_t tid, const synindex syn_id, const size_t lcid ) const
+{
+  connections_[ tid ][ syn_id ]->prefetch_connection( lcid );
 }
 
 inline void
