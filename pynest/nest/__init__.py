@@ -221,6 +221,11 @@ class NestModule(types.ModuleType):
         ),
         default=1,
     )
+    direct_spike_delivery = KernelAttribute(
+        "bool",
+        "Whether spikes of hpc static synapses are added directly to the input buffers of supporting target models",
+        default=False,
+    )
     off_grid_spiking = KernelAttribute(
         "bool",
         "Whether to transmit precise spike times in MPI communication",

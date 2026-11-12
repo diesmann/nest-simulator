@@ -173,6 +173,12 @@ public:
    */
   long get_modulo( long d );
 
+  //! Data of the table of pre-computed modulos (see get_modulo()), valid until the next init_moduli().
+  const long* get_moduli_data() const;
+
+  //! Whether Connector::send() may deliver spikes directly into the input buffers of the targets.
+  bool get_direct_spike_delivery() const;
+
 
   /**
    * Index to slice-based buffer.
@@ -473,6 +479,9 @@ private:
    */
   PaddedCounter_ groups_collocated_;
 
+  //! Deliver spikes of hpc static synapses directly into the input buffer of supporting targets.
+  bool direct_spike_delivery_;
+
   /**
    * Table of pre-computed modulos.
    *
@@ -590,6 +599,18 @@ inline void
 EventDeliveryManager::send_to_node( Event& e )
 {
   e();
+}
+
+inline const long*
+EventDeliveryManager::get_moduli_data() const
+{
+  return moduli_.data();
+}
+
+inline bool
+EventDeliveryManager::get_direct_spike_delivery() const
+{
+  return direct_spike_delivery_;
 }
 
 inline bool
