@@ -1678,7 +1678,7 @@ EventDeliveryManager::prepare_deferred_delivery( const size_t tid )
     size_t skippable = 0;
     for ( const auto& table : dt.delays_of_ )
     {
-      for ( const auto [ d_min, d_max ] : table )
+      for ( const auto& [ d_min, d_max ] : table )
       {
         if ( d_min > 0 )
         {
