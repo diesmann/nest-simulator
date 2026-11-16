@@ -226,6 +226,16 @@ class NestModule(types.ModuleType):
         "Whether spikes of hpc static synapses are added directly to the input buffers of supporting target models",
         default=False,
     )
+    deferred_spike_delivery = KernelAttribute(
+        "bool",
+        (
+            "Whether a thread delivers before the update only the spikes that arrive in the next cycle and delivers"
+            + " the others while it waits for the other threads. Takes effect only with direct_spike_delivery,"
+            + " tree_barrier and single_cycle_barrier, and with delays larger than the minimum delay."
+            + " Results do not depend on it"
+        ),
+        default=False,
+    )
     off_grid_spiking = KernelAttribute(
         "bool",
         "Whether to transmit precise spike times in MPI communication",

@@ -23,7 +23,8 @@
 #include "event_delivery_manager.h"
 
 // C++ includes:
-#include <algorithm>  // rotate, ranges::find
+#include <algorithm>  // rotate, ranges::find, min
+#include <climits>    // LONG_MIN, LONG_MAX
 #include <numeric>    // accumulate
 #include <thread>     // this_thread::yield
 
@@ -78,6 +79,8 @@ EventDeliveryManager::EventDeliveryManager()
   , send_recv_buffer_grow_extra_( 0.5 )
   , send_recv_buffer_resize_log_()
   , gather_completed_checker_()
+  , deferred_spike_delivery_( false )
+  , deferred_delivery_active_( false )
 {
 }
 
@@ -98,6 +101,7 @@ EventDeliveryManager::initialize( const bool adjust_number_of_threads_or_rng_onl
     off_grid_spiking_ = false;
     collocation_groups_ = 1;
     direct_spike_delivery_ = false;
+    deferred_spike_delivery_ = false;
     spike_delivery_prefetch_ = false;
     buffer_size_target_data_has_changed_ = false;
     send_recv_buffer_shrink_limit_ = 0.2;
@@ -109,6 +113,9 @@ EventDeliveryManager::initialize( const bool adjust_number_of_threads_or_rng_onl
   const size_t num_threads = kernel().vp_manager.get_num_threads();
 
   local_spike_counter_.resize( num_threads, 0 );
+  deferred_.clear();
+  deferred_.resize( num_threads );
+  deferred_delivery_active_ = false;
   reset_counters();
   emitted_spikes_register_.resize( num_threads );
   off_grid_emitted_spikes_register_.resize( num_threads );
@@ -160,6 +167,7 @@ EventDeliveryManager::set_status( const Dictionary& dict )
 {
   dict.update_value( names::off_grid_spiking, off_grid_spiking_ );
   dict.update_value( names::direct_spike_delivery, direct_spike_delivery_ );
+  dict.update_value( names::deferred_spike_delivery, deferred_spike_delivery_ );
 
   long groups = collocation_groups_;
   if ( dict.update_value( names::collocation_groups, groups ) )
@@ -218,6 +226,7 @@ EventDeliveryManager::get_status( Dictionary& dict )
   dict[ names::off_grid_spiking ] = off_grid_spiking_;
   dict[ names::collocation_groups ] = static_cast< long >( collocation_groups_ );
   dict[ names::direct_spike_delivery ] = direct_spike_delivery_;
+  dict[ names::deferred_spike_delivery ] = deferred_spike_delivery_;
   dict[ names::spike_delivery_prefetch ] = spike_delivery_prefetch_;
   dict[ names::local_spike_counter ] = std::accumulate( local_spike_counter_.begin(), local_spike_counter_.end(), 0 );
   dict[ names::spike_buffer_shrink_limit ] = send_recv_buffer_shrink_limit_;
@@ -747,6 +756,12 @@ EventDeliveryManager::get_global_max_spikes_per_rank_( const SendBufferPosition&
 void
 EventDeliveryManager::deliver_events( const size_t tid )
 {
+  if ( deferred_delivery_active_ and deferred_[ tid ].active_ )
+  {
+    deliver_events_deferred_( tid );
+    reset_spike_register_( tid );
+    return;
+  }
   if ( use_group_collocation() and kernel().mpi_manager.get_num_processes() == 1 )
   {
     deliver_events_from_groups_( tid );
@@ -1582,5 +1597,345 @@ EventDeliveryManager::get_local_spike_counter() const
   return std::accumulate( local_spike_counter_.begin(), local_spike_counter_.end(), 0 );
 }
 #endif
+
+void
+EventDeliveryManager::configure_deferred_delivery( const bool single_cycle_barrier )
+{
+  ConnectionManager& cm = kernel().connection_manager;
+  // with all delays at most min_delay, every connection is due in the next cycle and nothing can be deferred
+  deferred_delivery_active_ = deferred_spike_delivery_ and direct_spike_delivery_ and single_cycle_barrier
+    and cm.use_compressed_spikes() and cm.has_primary_connections() and cm.get_max_delay() > cm.get_min_delay();
+}
+
+void
+EventDeliveryManager::invalidate_deferred_tables()
+{
+  for ( DeferredThread_& dt : deferred_ )
+  {
+    dt.tables_valid_ = false;
+  }
+}
+
+void
+EventDeliveryManager::prepare_deferred_delivery( const size_t tid )
+{
+  DeferredThread_& dt = deferred_[ tid ];
+  assert( dt.fifo_.empty() );
+  dt.active_ = false;
+  if ( not deferred_delivery_active_ )
+  {
+    return;
+  }
+
+  ConnectionManager& conn_manager = kernel().connection_manager;
+  const std::vector< ConnectorModel* >& cm = kernel().model_manager.get_connection_models( tid );
+  const size_t num_syn = cm.size();
+  dt.deferrable_.assign( num_syn, 0 );
+  for ( synindex syn_id = 0; syn_id < num_syn; ++syn_id )
+  {
+    if ( conn_manager.supports_deferred_delivery( tid, syn_id, cm ) )
+    {
+      dt.deferrable_[ syn_id ] = 1;
+    }
+    else if ( conn_manager.has_direct_target( tid, syn_id ) )
+    {
+      return;  // a target with direct delivery also receives through a synapse type without it: deliver as before
+    }
+  }
+
+  const size_t status_changes = conn_manager.get_synapse_status_changes();
+  if ( not dt.tables_valid_ or dt.status_changes_ != status_changes )
+  {
+    constexpr long limit = std::numeric_limits< unsigned short >::max();
+    dt.delays_of_.assign( num_syn, {} );
+    for ( synindex syn_id = 0; syn_id < num_syn; ++syn_id )
+    {
+      if ( not dt.deferrable_[ syn_id ] )
+      {
+        continue;
+      }
+      auto& table = dt.delays_of_[ syn_id ];
+      table.assign( conn_manager.get_num_compressed_spike_data( tid, syn_id ), { 0, 0 } );
+      for ( size_t idx = 0; idx < table.size(); ++idx )
+      {
+        const size_t lcid = conn_manager.get_compressed_spike_data_lcid( tid, syn_id, idx );
+        if ( lcid != invalid_lcid )
+        {
+          const auto [ d_min, d_max ] = conn_manager.segment_delay_range( tid, syn_id, lcid );
+          table[ idx ] = { static_cast< unsigned short >( std::min( d_min, limit ) ),
+            static_cast< unsigned short >( std::min( d_max, limit ) ) };
+        }
+      }
+    }
+    dt.device_delay_ = conn_manager.min_delay_from_spike_devices( tid );
+    dt.tables_valid_ = true;
+    dt.status_changes_ = status_changes;
+  }
+  dt.head_ = 0;
+  dt.active_ = true;
+}
+
+void
+EventDeliveryManager::deliver_deferred_window_( const size_t tid, DeferredEntry_& entry, const long hi )
+{
+  DeferredThread_& dt = deferred_[ tid ];
+  ConnectionManager& conn_manager = kernel().connection_manager;
+  const std::vector< ConnectorModel* >& cm = kernel().model_manager.get_connection_models( tid );
+  if ( entry.lcid_ == invalid_lcid )
+  {
+    entry.lcid_ = conn_manager.get_compressed_spike_data_lcid( tid, entry.syn_id_, entry.idx_ );
+    assert( entry.lcid_ != invalid_lcid );
+  }
+  SpikeEvent se;
+  se.set_stamp( Time::step( entry.stamp_ ) );
+  se.set_offset( entry.offset_ );
+  se.set_sender_node_id_info( tid, entry.syn_id_, entry.lcid_ );
+  if ( not entry.deferrable_ )
+  {
+    // regular delivery of the whole segment, in the first visit, before the update
+    assert( entry.done_below_ == LONG_MIN );
+    conn_manager.send( tid, entry.syn_id_, entry.lcid_, cm, se );
+    entry.done_below_ = LONG_MAX;
+    entry.next_due_ = LONG_MAX;
+    return;
+  }
+  const bool first_pass = entry.done_below_ == LONG_MIN;
+  const long upto = std::min( hi, entry.cap_ );
+  DeliveryWindow window { dt.moduli_, dt.origin_steps_, entry.done_below_, upto, entry.cap_, first_pass, 0 };
+  conn_manager.send_window( tid, entry.syn_id_, entry.lcid_, cm, se, window );
+  entry.done_below_ = upto;
+  entry.next_due_ = upto == entry.cap_ ? LONG_MAX : window.next_due;
+}
+
+void
+EventDeliveryManager::deliver_deferred_batch_( const size_t tid, const size_t begin, const size_t end, const long hi )
+{
+  DeferredThread_& dt = deferred_[ tid ];
+  ConnectionManager& conn_manager = kernel().connection_manager;
+  constexpr size_t BATCH = 8;
+  size_t selected[ BATCH ];
+  size_t k = begin;
+  while ( k < end )
+  {
+    size_t n = 0;
+    for ( ; k < end and n < BATCH; ++k )
+    {
+      if ( dt.fifo_[ k ].next_due_ < hi )
+      {
+        selected[ n++ ] = k;
+      }
+    }
+    for ( size_t j = 0; j < n; ++j )
+    {
+      const DeferredEntry_& entry = dt.fifo_[ selected[ j ] ];
+      if ( entry.lcid_ == invalid_lcid )
+      {
+        conn_manager.prefetch_compressed_spike_data_entry( tid, entry.syn_id_, entry.idx_ );
+      }
+    }
+    for ( size_t j = 0; j < n; ++j )
+    {
+      DeferredEntry_& entry = dt.fifo_[ selected[ j ] ];
+      if ( entry.lcid_ == invalid_lcid )
+      {
+        entry.lcid_ = conn_manager.get_compressed_spike_data_lcid( tid, entry.syn_id_, entry.idx_ );
+      }
+      conn_manager.prefetch_connection( tid, entry.syn_id_, entry.lcid_ );
+    }
+    for ( size_t j = 0; j < n; ++j )
+    {
+      deliver_deferred_window_( tid, dt.fifo_[ selected[ j ] ], hi );
+    }
+  }
+}
+
+void
+EventDeliveryManager::deliver_events_deferred_( const size_t tid )
+{
+  // deliver only at beginning of time slice
+  if ( kernel().simulation_manager.get_from_step() > 0 )
+  {
+    return;
+  }
+
+  DeferredThread_& dt = deferred_[ tid ];
+  ConnectionManager& conn_manager = kernel().connection_manager;
+  const long min_delay = conn_manager.get_min_delay();
+
+  // time base of this cycle, valid while the thread delivers at the barrier
+  dt.moduli_ = get_moduli_data();
+  dt.origin_steps_ = kernel().simulation_manager.get_slice_origin().get_steps();
+  dt.fifo_.erase( dt.fifo_.begin(), dt.fifo_.begin() + dt.head_ );
+  dt.head_ = 0;
+
+  const long hi = dt.origin_steps_ + min_delay;  // connections arriving before hi are due in this cycle
+  // connections arriving from cap on may meet spikes of devices sent in this update and are delivered now as well
+  const long cap = dt.device_delay_ == LONG_MAX ? LONG_MAX : dt.origin_steps_ + dt.device_delay_;
+  // the spikes were emitted in the previous slice: stamp of lag l as prepared_timestamps in deliver_events_()
+  const long stamp0 = dt.origin_steps_ + 1 - min_delay;
+
+  // entries that arrived in an earlier cycle and are still open are completed, the others get their windows
+  size_t old_end = 0;
+  while ( old_end < dt.fifo_.size() and dt.fifo_[ old_end ].arrived_ < dt.origin_steps_ - min_delay + 1 )
+  {
+    ++old_end;
+  }
+  deliver_deferred_batch_( tid, 0, old_end, LONG_MAX );
+  deliver_deferred_batch_( tid, old_end, dt.fifo_.size(), hi );
+  dt.head_ = old_end;
+  const size_t first_new = dt.fifo_.size();
+
+  // new entries, in the order of the regular delivery
+  const auto append = [ & ]( const auto& spike_data )
+  {
+    const synindex syn_id = spike_data.get_syn_id();
+    const size_t idx = spike_data.get_lcid();  // for compressed spikes, the row in the compressed spike data
+    const long stamp = stamp0 + spike_data.get_lag();
+    if ( dt.deferrable_[ syn_id ] )
+    {
+      const auto [ d_min, d_max ] = dt.delays_of_[ syn_id ][ idx ];
+      if ( d_min > 0 )
+      {
+        assert( not spike_data.is_flush_event() );
+        // the first visit is due now if a connection arrives in this cycle or at or beyond the cap
+        const long next_due = stamp - 1 + d_max >= cap ? LONG_MIN : stamp - 1 + d_min;
+        dt.fifo_.push_back( { syn_id,
+          idx,
+          invalid_lcid,
+          stamp,
+          spike_data.get_offset(),
+          LONG_MIN,
+          next_due,
+          cap,
+          dt.origin_steps_,
+          true } );
+      }
+    }
+    else if ( conn_manager.get_compressed_spike_data_lcid( tid, syn_id, idx ) != invalid_lcid )
+    {
+      dt.fifo_.push_back( { syn_id,
+        idx,
+        invalid_lcid,
+        stamp,
+        spike_data.get_offset(),
+        LONG_MIN,
+        LONG_MIN,
+        cap,
+        dt.origin_steps_,
+        false } );
+    }
+  };
+
+  if ( use_group_collocation() and kernel().mpi_manager.get_num_processes() == 1 )
+  {
+#if defined( __GNUC__ ) || defined( __clang__ )
+    // as in deliver_events_from_groups_(): request the lines of all group buffers at once
+    for ( const auto& group : group_buffers_ )
+    {
+      const char* data = reinterpret_cast< const char* >( group.spikes_[ 0 ].data() );
+      const size_t bytes = group.spikes_[ 0 ].size() * sizeof( SpikeData );
+      for ( size_t offset = 0; offset < bytes; offset += 64 )
+      {
+        __builtin_prefetch( data + offset );
+      }
+    }
+#endif
+    for ( const auto& group : group_buffers_ )
+    {
+      for ( const SpikeData& spike_data : group.spikes_[ 0 ] )
+      {
+        append( spike_data );
+      }
+    }
+  }
+  else
+  {
+    const size_t per_rank = kernel().mpi_manager.get_send_recv_count_spike_data_per_rank();
+    const auto append_buffer = [ & ]( const auto& recv_buffer )
+    {
+      for ( size_t rank = 0; rank < kernel().mpi_manager.get_num_processes(); ++rank )
+      {
+        if ( recv_buffer[ rank * per_rank ].is_invalid_marker() )
+        {
+          continue;
+        }
+        for ( size_t i = 0; i < per_rank; ++i )
+        {
+          const auto& spike_data = recv_buffer[ rank * per_rank + i ];
+          append( spike_data );
+          if ( spike_data.is_end_marker() )
+          {
+            break;
+          }
+        }
+      }
+    };
+    if ( off_grid_spiking_ )
+    {
+      append_buffer( recv_buffer_off_grid_spike_data_ );
+    }
+    else
+    {
+      append_buffer( recv_buffer_spike_data_ );
+    }
+  }
+
+  deliver_deferred_batch_( tid, first_new, dt.fifo_.size(), hi );
+}
+
+bool
+EventDeliveryManager::deliver_deferred_one( const size_t tid )
+{
+  DeferredThread_& dt = deferred_[ tid ];
+  if ( dt.head_ == dt.fifo_.size() )
+  {
+    return false;
+  }
+  ConnectionManager& conn_manager = kernel().connection_manager;
+  // pipeline over the next entries: the look-up four entries ahead is prefetched, the entry two ahead is looked up and
+  // its first connection prefetched
+  constexpr size_t AHEAD_LOOKUP = 4;
+  constexpr size_t AHEAD_CONNECTION = 2;
+  if ( dt.head_ + AHEAD_LOOKUP < dt.fifo_.size() )
+  {
+    const DeferredEntry_& ahead = dt.fifo_[ dt.head_ + AHEAD_LOOKUP ];
+    if ( ahead.lcid_ == invalid_lcid )
+    {
+      conn_manager.prefetch_compressed_spike_data_entry( tid, ahead.syn_id_, ahead.idx_ );
+    }
+  }
+  if ( dt.head_ + AHEAD_CONNECTION < dt.fifo_.size() )
+  {
+    DeferredEntry_& ahead = dt.fifo_[ dt.head_ + AHEAD_CONNECTION ];
+    if ( ahead.lcid_ == invalid_lcid )
+    {
+      ahead.lcid_ = conn_manager.get_compressed_spike_data_lcid( tid, ahead.syn_id_, ahead.idx_ );
+    }
+    conn_manager.prefetch_connection( tid, ahead.syn_id_, ahead.lcid_ );
+  }
+  DeferredEntry_& entry = dt.fifo_[ dt.head_ ];
+  if ( entry.next_due_ != LONG_MAX )
+  {
+    deliver_deferred_window_( tid, entry, LONG_MAX );
+  }
+  ++dt.head_;
+  return true;
+}
+
+void
+EventDeliveryManager::finish_deferred_delivery( const size_t tid )
+{
+  DeferredThread_& dt = deferred_[ tid ];
+  if ( not dt.active_ )
+  {
+    return;
+  }
+  // the clock may have advanced since the last delivery
+  dt.moduli_ = get_moduli_data();
+  dt.origin_steps_ = kernel().simulation_manager.get_slice_origin().get_steps();
+  deliver_deferred_batch_( tid, dt.head_, dt.fifo_.size(), LONG_MAX );
+  dt.fifo_.clear();
+  dt.head_ = 0;
+}
 
 }  // of namespace nest
