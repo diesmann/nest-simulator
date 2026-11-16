@@ -153,6 +153,10 @@ template < typename ConnectionT >
 std::pair< long, long >
 Connector< ConnectionT >::segment_delay_range( const size_t tid, const size_t lcid )
 {
+  if constexpr ( not ConnectionT::supports_direct_delivery )
+  {
+    return { 1, 0 };  // never called: such connectors do not defer
+  }
   long min_delay = LONG_MAX;
   long max_delay = 0;
   size_t i = lcid;
@@ -180,34 +184,7 @@ Connector< ConnectionT >::segment_delay_range( const size_t tid, const size_t lc
   return { min_delay == LONG_MAX ? 1 : min_delay, max_delay };
 }
 
-template < typename ConnectionT >
-long
-Connector< ConnectionT >::min_delay_to_direct_targets( const size_t tid ) const
-{
-  long min_delay = LONG_MAX;
-  for ( const ConnectionT& conn : C_ )
-  {
-    if ( not conn.is_disabled() and conn.get_target( tid )->get_direct_spike_input().is_supported() )
-    {
-      min_delay = std::min( min_delay, conn.get_delay_steps() );
-    }
-  }
-  return min_delay;
-}
 
-template < typename ConnectionT >
-bool
-Connector< ConnectionT >::has_direct_target( const size_t tid ) const
-{
-  for ( const ConnectionT& conn : C_ )
-  {
-    if ( not conn.is_disabled() and conn.get_target( tid )->get_direct_spike_input().is_supported() )
-    {
-      return true;
-    }
-  }
-  return false;
-}
 
 template < typename ConnectionT >
 void

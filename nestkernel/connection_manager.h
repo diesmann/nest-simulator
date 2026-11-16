@@ -1050,11 +1050,6 @@ ConnectionManager::supports_deferred_delivery( const size_t tid,
   return connections_[ tid ][ syn_id ] and connections_[ tid ][ syn_id ]->supports_deferred_delivery( cm );
 }
 
-inline bool
-ConnectionManager::has_direct_target( const size_t tid, const synindex syn_id ) const
-{
-  return connections_[ tid ][ syn_id ] and connections_[ tid ][ syn_id ]->has_direct_target( tid );
-}
 
 inline long
 ConnectionManager::min_delay_from_spike_devices( const size_t tid ) const

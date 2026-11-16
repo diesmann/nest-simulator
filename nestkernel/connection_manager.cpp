@@ -2058,4 +2058,24 @@ ConnectionManager::get_num_compressed_spike_data( const size_t tid, const synind
   return syn_id < block.size() ? block[ syn_id ].size() : 0;
 }
 
+bool
+ConnectionManager::has_direct_target( const size_t tid, const synindex syn_id ) const
+{
+  // through the interface of ConnectorBase, so that the code is not instantiated for every synapse type
+  const ConnectorBase* connector = connections_[ tid ][ syn_id ];
+  if ( not connector )
+  {
+    return false;
+  }
+  for ( size_t lcid = 0; lcid < connector->size(); ++lcid )
+  {
+    Node* target = kernel().node_manager.get_node_or_proxy( connector->get_target_node_id( tid, lcid ), tid );
+    if ( target->get_direct_spike_input().is_supported() )
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
 }  // namespace nest

@@ -197,11 +197,8 @@ public:
    */
   virtual std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) = 0;
 
-  //! Smallest delay in steps of the connections to targets that support direct spike delivery; LONG_MAX if none.
-  virtual long min_delay_to_direct_targets( const size_t tid ) const = 0;
 
-  //! Whether a connection of this connector has a target that supports direct spike delivery.
-  virtual bool has_direct_target( const size_t tid ) const = 0;
+
 
   virtual void
   send_weight_event( const size_t tid, const unsigned int lcid, Event& e, const CommonSynapseProperties& cp ) = 0;
@@ -554,11 +551,9 @@ public:
   // Implemented in connector_base_impl.h
   std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) override;
 
-  // Implemented in connector_base_impl.h
-  long min_delay_to_direct_targets( const size_t tid ) const override;
 
-  // Implemented in connector_base_impl.h
-  bool has_direct_target( const size_t tid ) const override;
+
+
 
   void
   clear_direct_spike_table() override

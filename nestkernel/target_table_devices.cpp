@@ -229,7 +229,17 @@ TargetTableDevices::min_delay_from_spike_devices( const size_t tid ) const
     {
       if ( connector )
       {
-        min_delay = std::min( min_delay, connector->min_delay_to_direct_targets( tid ) );
+        // through the interface of ConnectorBase, so that the code is not instantiated for every synapse type
+        for ( size_t lcid = 0; lcid < connector->size(); ++lcid )
+        {
+          Node* target = kernel().node_manager.get_node_or_proxy( connector->get_target_node_id( tid, lcid ), tid );
+          if ( target->get_direct_spike_input().is_supported() )
+          {
+            Dictionary status;
+            connector->get_synapse_status( tid, lcid, status );
+            min_delay = std::min( min_delay, Time::delay_ms_to_steps( status.get< double >( names::delay ) ) );
+          }
+        }
       }
     }
   }
