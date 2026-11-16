@@ -134,7 +134,9 @@ All of them assume that every thread has a core of its own and that the threads 
    cortical network models, and with many threads per process, where the waiting at the barrier is a large part of the
    cycle. If all delays equal the minimum delay, nothing can be deferred and the setting has no effect. Spikes that
    devices such as ``poisson_generator`` send to the same neurons limit how far spikes can be deferred: the longer the
-   delay of these devices, the more can be deferred.
+   delay of these devices, the more can be deferred. A thread defers only if most of its spikes need not be delivered
+   before the next update; after a simulation, ``deferred_spike_delivery_threads`` gives the number of threads that
+   deferred.
 
 With bound threads, NEST forms the groups and blocks along the NUMA nodes of the threads (see below). An example for one
 process with 128 threads on a node with two sockets of 64 cores each:

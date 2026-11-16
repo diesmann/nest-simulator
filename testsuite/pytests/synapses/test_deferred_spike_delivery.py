@@ -32,6 +32,8 @@ import nest
 import numpy as np
 import pytest
 
+deferring_threads = 0  # number of threads that deferred in the last call of build_and_run()
+
 pytestmark = pytest.mark.skipif_missing_threads
 
 
@@ -43,6 +45,7 @@ def build_and_run(
     synapse_model="static_synapse_hpc",
     between=None,
     poisson=False,
+    poisson_delay=1.5,
 ):
     nest.ResetKernel()
     nest.set(
@@ -62,15 +65,15 @@ def build_and_run(
     neurons.V_m = nest.random.uniform(-70.0, -55.0)
     if poisson:
         noise = nest.Create("poisson_generator", params={"rate": 4000.0})
-        nest.Connect(noise, neurons, syn_spec={"weight": 10.0, "delay": 1.5})
+        nest.Connect(noise, neurons, syn_spec={"weight": 10.0, "delay": poisson_delay})
     rec = nest.Create("spike_recorder")
     mm = nest.Create("multimeter", params={"record_from": ["V_m"], "interval": h})
 
-    # delays as in the microcircuit model (Potjans and Diesmann, 2014), never below the minimum delay
-    delay_ex = nest.math.redraw(nest.random.normal(mean=max(1.5, 2 * d_min), std=0.75), min=d_min - 0.5 * h, max=np.inf)
-    delay_in = nest.math.redraw(
-        nest.random.normal(mean=max(0.75, 2 * d_min), std=0.375), min=d_min - 0.5 * h, max=np.inf
-    )
+    # normally distributed delays as in the microcircuit model (Potjans and Diesmann, 2014), longer, so that most
+    # sources have no connection due in the next cycle and the threads defer; never below the minimum delay
+    mean_ex, mean_in = max(2.0, 4 * d_min), max(1.0, 4 * d_min)
+    delay_ex = nest.math.redraw(nest.random.normal(mean=mean_ex, std=0.15 * mean_ex), min=d_min - 0.5 * h, max=np.inf)
+    delay_in = nest.math.redraw(nest.random.normal(mean=mean_in, std=0.15 * mean_in), min=d_min - 0.5 * h, max=np.inf)
     syn_ex = {"synapse_model": synapse_model, "weight": nest.random.normal(20.0, 4.0), "delay": delay_ex}
     syn_in = {"synapse_model": synapse_model, "weight": -90.0, "delay": delay_in}
     nest.Connect(neurons[:n_ex], neurons, {"rule": "fixed_indegree", "indegree": 40}, syn_ex)
@@ -83,6 +86,8 @@ def build_and_run(
     if between:
         between(neurons, rec, syn_ex)
     nest.Simulate(60.0)
+    global deferring_threads
+    deferring_threads = nest.deferred_spike_delivery_threads
     ev = rec.get("events")
     order = np.lexsort((ev["senders"], ev["times"]))
     vm = mm.get("events")
@@ -105,8 +110,8 @@ def add_nodes(neurons, rec, syn_ex):
 
 def shorten_delays(neurons, rec, syn_ex):
     """Delays changed by SetStatus, without a rebuild of the connections: connections due earlier must not be late."""
-    conns = nest.GetConnections(neurons[:80], neurons)
-    conns.delay = nest.resolution
+    conns = nest.GetConnections(neurons[:10], neurons)
+    conns.delay = nest.min_delay  # the minimum delay cannot change after Simulate
 
 
 def test_default_is_off_and_resets():
@@ -123,13 +128,18 @@ def test_default_is_off_and_resets():
 def test_identical_to_regular_delivery(threads, min_delay_steps):
     ref = build_and_run(False, threads=threads, min_delay_steps=min_delay_steps)
     assert len(ref[0]) > 100, "network must spike"
-    assert_identical(ref, build_and_run(True, threads=threads, min_delay_steps=min_delay_steps))
+    assert deferring_threads == 0
+    res = build_and_run(True, threads=threads, min_delay_steps=min_delay_steps)
+    assert deferring_threads > 0, "the test must exercise the deferral"
+    assert_identical(ref, res)
 
 
 @pytest.mark.parametrize("between", [add_nodes, shorten_delays])
 def test_identical_with_changes_between_simulations(between):
     ref = build_and_run(False, threads=4, between=between)
-    assert_identical(ref, build_and_run(True, threads=4, between=between))
+    res = build_and_run(True, threads=4, between=between)
+    assert deferring_threads > 0, "the test must exercise the deferral"
+    assert_identical(ref, res)
 
 
 def test_unsupported_target_model():
@@ -156,11 +166,18 @@ def test_mixed_synapse_types_fall_back():
 
 
 @pytest.mark.parametrize("threads", [1, 4])
-def test_identical_with_poisson_input(threads):
-    """A generator adds spikes to the input slots during the update; deferred spikes must not change the order."""
-    ref = build_and_run(False, threads=threads, poisson=True)
+@pytest.mark.parametrize("poisson_delay", [1.5, 5.0])
+def test_identical_with_poisson_input(threads, poisson_delay):
+    """A generator adds spikes to the input slots during the update; deferred spikes must not change the order.
+
+    With delay 1.5 ms of the generator the threads do not defer (most spikes would be visited twice); with 5 ms they
+    defer the arrival steps up to the delay of the generator.
+    """
+    ref = build_and_run(False, threads=threads, poisson=True, poisson_delay=poisson_delay)
     assert len(ref[0]) > 100, "network must spike"
-    assert_identical(ref, build_and_run(True, threads=threads, poisson=True))
+    res = build_and_run(True, threads=threads, poisson=True, poisson_delay=poisson_delay)
+    assert (deferring_threads > 0) == (poisson_delay > 1.5)
+    assert_identical(ref, res)
 
 
 def run_order_probe(deferred):
@@ -183,6 +200,9 @@ def run_order_probe(deferred):
     nest.Connect(trigger, parrots, syn_spec={"delay": 0.1})
     # the parrots spike at 10.1 ms; their spikes arrive with the device spike of 10.2 ms and delay 1.5 ms
     nest.Connect(parrots, target, syn_spec={"synapse_model": "static_synapse_hpc", "weight": 1.0, "delay": 1.6})
+    # silent sources with short delays, so that most sources need no visit before the update and the thread defers
+    silent = nest.Create("parrot_neuron", 10)
+    nest.Connect(silent, target, syn_spec={"synapse_model": "static_synapse_hpc", "weight": 1.0, "delay": 0.5})
     device = nest.Create("spike_generator", params={"spike_times": [10.2]})
     nest.Connect(device, target, syn_spec={"weight": 1e16, "delay": 1.5})
     mm = nest.Create("multimeter", params={"record_from": ["I_syn_ex"], "interval": 0.1})
@@ -194,3 +214,4 @@ def run_order_probe(deferred):
 def test_order_with_device_spikes():
     assert run_order_probe(False) == 1e16 + 2
     assert run_order_probe(True) == 1e16 + 2
+    assert nest.deferred_spike_delivery_threads == 1, "the probe must exercise the deferral"

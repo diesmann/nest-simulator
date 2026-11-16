@@ -380,6 +380,7 @@ private:
     //! delay
     std::vector< std::vector< std::pair< unsigned short, unsigned short > > > delays_of_;
     long device_delay_ = LONG_MAX;    //!< ConnectionManager::min_delay_from_spike_devices() for the thread
+    double skippable_share_ = 0.0;    //!< share of the sources whose spikes need no visit before the update
     std::vector< char > deferrable_;  //!< per synapse type
     bool tables_valid_ = false;       //!< delays_of_ and device_delay_ fit the connections
     size_t status_changes_ = 0;       //!< ConnectionManager::get_synapse_status_changes() when the tables were built
@@ -459,6 +460,10 @@ private:
    * delivery: the contributions of one entry to one slot all have the same arrival step and fall into the same pass,
    * per slot the contributions of older entries precede those of younger ones, and no deferred contribution goes to a
    * slot that a device reaches in the meantime. The results are the same as with the regular delivery.
+   *
+   * A thread defers only if at least half of its sources need no visit before the update (see
+   * prepare_deferred_delivery()); with devices whose delays are as short as those of the network, almost every entry
+   * would be visited twice.
    */
   void deliver_events_deferred_( const size_t tid );
 

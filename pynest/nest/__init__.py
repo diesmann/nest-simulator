@@ -236,6 +236,14 @@ class NestModule(types.ModuleType):
         ),
         default=False,
     )
+    deferred_spike_delivery_threads = KernelAttribute(
+        "int",
+        (
+            "Number of threads that deferred the delivery of spikes in the last simulation. A thread defers only if"
+            + " most of its spikes need not be delivered before the next update"
+        ),
+        readonly=True,
+    )
     off_grid_spiking = KernelAttribute(
         "bool",
         "Whether to transmit precise spike times in MPI communication",
