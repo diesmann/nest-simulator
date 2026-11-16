@@ -31,3 +31,4 @@
 #include "test_sort.h"
 #include "test_target_fields.h"
 #include "test_thread_blocks.h"
+#include "test_update_units.h"
