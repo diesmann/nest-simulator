@@ -125,12 +125,25 @@ public:
   /**
    * Address of the input buffer of the target of connection `conn`.
    *
-   * Resolves the entry if needed: the target node is only accessed on the first spike to it.
+   * Resolves the entry if needed: the target node is only accessed on the first spike to it. Called for every spike
+   * and connection; it contains only the frequent case and leaves the first spike to a target to resolve_(). Do not
+   * merge the two: the compiler then stops inlining get() into the loops over connections (see resolve_()).
    */
   template < typename ConnectionT >
   const DirectSpikeInputAddr& get( const ConnectionT& conn, const size_t tid );
 
 private:
+  /**
+   * Resolve the entry of the target of `conn` on its first spike; the rare part of get().
+   *
+   * Kept out of get(), so that get() is short and the compiler inlines it into the loops over connections. With both
+   * parts in one function, adding further callers of get() (the deferred spike delivery) made the Intel oneAPI
+   * compiler call get() out of line for every spike, also in the regular delivery (perf, 2026-11-17: 0.7 % of the
+   * cycles in get(); PD14 3 to 5 % slower on an Intel Xeon 6980P node with the deferral switched off).
+   */
+  template < typename ConnectionT >
+  const DirectSpikeInputAddr& resolve_( const ConnectionT& conn, const size_t tid );
+
   //! One entry per target; the flag resolved_ of an entry lives in the padding of the address (16 bytes in total).
   std::vector< DirectSpikeInputAddr > entries_;
 };
@@ -142,8 +155,20 @@ DirectSpikeTable::clear()
 }
 
 template < typename ConnectionT >
-const DirectSpikeInputAddr&
+inline const DirectSpikeInputAddr&
 DirectSpikeTable::get( const ConnectionT& conn, const size_t tid )
+{
+  const size_t idx = conn.get_target_index();
+  if ( idx < entries_.size() and entries_[ idx ].resolved_ )
+  {
+    return entries_[ idx ];
+  }
+  return resolve_( conn, tid );
+}
+
+template < typename ConnectionT >
+const DirectSpikeInputAddr&
+DirectSpikeTable::resolve_( const ConnectionT& conn, const size_t tid )
 {
   const size_t idx = conn.get_target_index();
   if ( idx >= entries_.size() )
@@ -151,11 +176,8 @@ DirectSpikeTable::get( const ConnectionT& conn, const size_t tid )
     entries_.resize( idx + 1 );
   }
   DirectSpikeInputAddr& entry = entries_[ idx ];
-  if ( not entry.resolved_ )
-  {
-    entry = conn.get_target( tid )->get_direct_spike_input();
-    entry.resolved_ = true;
-  }
+  entry = conn.get_target( tid )->get_direct_spike_input();
+  entry.resolved_ = true;
   return entry;
 }
 
