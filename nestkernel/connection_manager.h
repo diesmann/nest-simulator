@@ -24,6 +24,7 @@
 #define CONNECTION_MANAGER_H
 
 // C++ includes:
+#include <atomic>
 #include <string>
 
 // Includes from libnestutil:
@@ -495,6 +496,43 @@ public:
   size_t get_compressed_spike_data_lcid( const size_t tid, const synindex syn_id, const size_t idx ) const;
 
   /**
+   * Number of calls of set_synapse_status() so far.
+   *
+   * A change of the status of a connection may change its delay without a rebuild of the connection infrastructure;
+   * the deferred spike delivery rebuilds its table of the smallest delays when this number has changed.
+   */
+  size_t get_synapse_status_changes() const;
+
+  //! Number of rows of the compressed spike data of syn_id, as seen by thread tid.
+  size_t get_num_compressed_spike_data( const size_t tid, const synindex syn_id ) const;
+
+  //! Whether the connections of syn_id on thread tid can be delivered in windows, see Connector::send_window().
+  bool
+  supports_deferred_delivery( const size_t tid, const synindex syn_id, const std::vector< ConnectorModel* >& cm ) const;
+
+  //! Whether a connection of syn_id on thread tid has a target that supports direct spike delivery.
+  bool has_direct_target( const size_t tid, const synindex syn_id ) const;
+
+  //! Delay range of the segment of syn_id starting at lcid on thread tid, see Connector::segment_delay_range().
+  std::pair< long, long > segment_delay_range( const size_t tid, const synindex syn_id, const size_t lcid ) const;
+
+  /**
+   * Smallest delay in steps from a device that sends spikes to a target with direct spike delivery on thread tid.
+   *
+   * LONG_MAX if there is none. Devices that send currents or data and recording devices are not counted; see
+   * EventDeliveryManager::deliver_events_deferred_().
+   */
+  long min_delay_from_spike_devices( const size_t tid ) const;
+
+  //! Deliver the connections of a segment whose arrival steps lie in the window, see Connector::send_window().
+  void send_window( const size_t tid,
+    const synindex syn_id,
+    const size_t lcid,
+    const std::vector< ConnectorModel* >& cm,
+    SpikeEvent& e,
+    DeliveryWindow& window );
+
+  /**
    * Entry of thread tid in row idx of the compressed spike data of synapse type syn_id.
    *
    * Reads the copy of the thread's block if there are copies (compressed_spike_data_copies > 1); the original structure
@@ -770,6 +808,8 @@ private:
   //! Whether primary connections (spikes) exist.
   bool has_primary_connections_;
 
+  std::atomic< size_t > synapse_status_changes_ { 0 };  //!< see get_synapse_status_changes()
+
   //! Check for primary connections (spikes) on each thread.
   PerThreadBoolIndicator check_primary_connections_;
 
@@ -993,6 +1033,43 @@ ConnectionManager::send( const size_t tid,
   Event& e )
 {
   connections_[ tid ][ syn_id ]->send( tid, lcid, cm, e );
+}
+
+inline size_t
+ConnectionManager::get_synapse_status_changes() const
+{
+  return synapse_status_changes_.load( std::memory_order_relaxed );
+}
+
+inline bool
+ConnectionManager::supports_deferred_delivery( const size_t tid,
+  const synindex syn_id,
+  const std::vector< ConnectorModel* >& cm ) const
+{
+  return connections_[ tid ][ syn_id ] and connections_[ tid ][ syn_id ]->supports_deferred_delivery( cm );
+}
+
+inline long
+ConnectionManager::min_delay_from_spike_devices( const size_t tid ) const
+{
+  return target_table_devices_.min_delay_from_spike_devices( tid );
+}
+
+inline std::pair< long, long >
+ConnectionManager::segment_delay_range( const size_t tid, const synindex syn_id, const size_t lcid ) const
+{
+  return connections_[ tid ][ syn_id ]->segment_delay_range( tid, lcid );
+}
+
+inline void
+ConnectionManager::send_window( const size_t tid,
+  const synindex syn_id,
+  const size_t lcid,
+  const std::vector< ConnectorModel* >& cm,
+  SpikeEvent& e,
+  DeliveryWindow& window )
+{
+  connections_[ tid ][ syn_id ]->send_window( tid, lcid, cm, e, window );
 }
 
 inline void

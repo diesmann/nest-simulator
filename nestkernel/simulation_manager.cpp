@@ -852,6 +852,7 @@ SimulationManager::update_connection_infrastructure( const size_t tid )
     kernel().connection_manager.clear_compressed_spike_data_map();
     kernel().node_manager.set_have_nodes_changed( false );
     kernel().connection_manager.unset_connections_have_changed();
+    kernel().event_delivery_manager.invalidate_deferred_tables();
   }
   sw_communicate_prepare_.stop();
 }
@@ -896,10 +897,14 @@ SimulationManager::update_()
         : std::vector< size_t > { 0, kernel().vp_manager.get_num_threads() } );
   }
 
+  kernel().event_delivery_manager.configure_deferred_delivery( use_single_barrier );
+  const bool defer = kernel().event_delivery_manager.is_deferred_delivery_active();
+
 // parallel section begins
 #pragma omp parallel
   {
     const size_t tid = kernel().vp_manager.get_thread_id();
+    kernel().event_delivery_manager.prepare_deferred_delivery( tid );
 
     // The units of the update of this thread: blocks of neurons and single nodes, formed in prepare_nodes().
     const auto& update_units = kernel().node_manager.get_update_units( tid );
@@ -1184,6 +1189,8 @@ SimulationManager::update_()
           // executes the master section after all groups are complete, then all threads leave. The synchronization
           // time therefore includes the steps of the threads that execute them.
           kernel().get_omp_synchronization_simulation_stopwatch().start();
+          // While waiting, a thread that defers completes open entries (see
+          // EventDeliveryManager::deliver_events_deferred_()).
           tree_barrier_->barrier_.wait(
             tid,
             [ & ]( const size_t g )
@@ -1193,7 +1200,8 @@ SimulationManager::update_()
                 kernel().event_delivery_manager.collocate_group( g );
               }
             },
-            master_section );
+            master_section,
+            [ & ]() { return defer and kernel().event_delivery_manager.deliver_deferred_one( tid ); } );
           kernel().get_omp_synchronization_simulation_stopwatch().stop();
         }
         else
@@ -1247,6 +1255,8 @@ SimulationManager::update_()
 #endif
 
       } while ( to_do_ > 0 );
+
+      kernel().event_delivery_manager.finish_deferred_delivery( tid );
 
       // End of the slice, we update the number of synaptic elements
       for ( SparseNodeArray::const_iterator i = kernel().node_manager.get_local_nodes( tid ).begin();

@@ -147,6 +147,8 @@ const std::string data_prefix( "data_prefix" );
 const std::string dead_time( "dead_time" );
 const std::string dead_time_random( "dead_time_random" );
 const std::string dead_time_shape( "dead_time_shape" );
+const std::string deferred_spike_delivery( "deferred_spike_delivery" );
+const std::string deferred_spike_delivery_threads( "deferred_spike_delivery_threads" );
 const std::string delay( "delay" );
 const std::string delay_u_bars( "delay_u_bars" );
 const std::string deliver_interval( "deliver_interval" );

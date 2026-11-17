@@ -35,6 +35,7 @@ set ( nestkernel_sources
       common_properties_hom_w.h
       syn_id_delay.h
       connector_base.h connector_base_impl.h
+      direct_spike_delivery.h direct_spike_delivery.cpp
       connector_model.h connector_model_impl.h connector_model.cpp
       connection_id.h connection_id.cpp
       deprecation_warning.h deprecation_warning.cpp
