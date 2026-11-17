@@ -32,8 +32,6 @@ import nest
 import numpy as np
 import pytest
 
-deferring_threads = 0  # number of threads that deferred in the last call of build_and_run()
-
 pytestmark = pytest.mark.skipif_missing_threads
 
 
@@ -86,18 +84,22 @@ def build_and_run(
     if between:
         between(neurons, rec, syn_ex)
     nest.Simulate(60.0)
-    global deferring_threads
-    deferring_threads = nest.deferred_spike_delivery_threads
     ev = rec.get("events")
     order = np.lexsort((ev["senders"], ev["times"]))
     vm = mm.get("events")
     vm_order = np.lexsort((vm["senders"], vm["times"]))
-    return ev["senders"][order], ev["times"][order], vm["V_m"][vm_order]
+    return {
+        "senders": ev["senders"][order],
+        "times": ev["times"][order],
+        "V_m": vm["V_m"][vm_order],
+        "deferring_threads": nest.deferred_spike_delivery_threads,
+    }
 
 
 def assert_identical(a, b):
-    for x, y in zip(a, b):
-        np.testing.assert_array_equal(x, y)
+    """Spike trains and membrane potentials of two runs are the same."""
+    for key in ("senders", "times", "V_m"):
+        np.testing.assert_array_equal(a[key], b[key])
 
 
 def add_nodes(neurons, rec, syn_ex):
@@ -106,6 +108,13 @@ def add_nodes(neurons, rec, syn_ex):
     nest.Connect(neurons[:40], new, {"rule": "fixed_indegree", "indegree": 10}, syn_ex)
     nest.Connect(new, neurons[:40], {"rule": "fixed_indegree", "indegree": 5}, syn_ex)
     nest.Connect(new, rec)
+
+
+def add_unsupported_targets(neurons, rec, syn_ex):
+    """Targets without direct delivery among the targets of some sources: they are served in the first visit."""
+    delta = nest.Create("iaf_psc_delta", 20, params={"I_e": 380.0})
+    nest.Connect(neurons[:20], delta, {"rule": "fixed_indegree", "indegree": 5}, syn_ex)
+    nest.Connect(delta, rec)
 
 
 def shorten_delays(neurons, rec, syn_ex):
@@ -127,25 +136,25 @@ def test_default_is_off_and_resets():
 @pytest.mark.parametrize("min_delay_steps", [1, 10])
 def test_identical_to_regular_delivery(threads, min_delay_steps):
     ref = build_and_run(False, threads=threads, min_delay_steps=min_delay_steps)
-    assert len(ref[0]) > 100, "network must spike"
-    assert deferring_threads == 0
+    assert len(ref["senders"]) > 100, "network must spike"
+    assert ref["deferring_threads"] == 0
     res = build_and_run(True, threads=threads, min_delay_steps=min_delay_steps)
-    assert deferring_threads > 0, "the test must exercise the deferral"
+    assert res["deferring_threads"] > 0, "the test must exercise the deferral"
     assert_identical(ref, res)
 
 
-@pytest.mark.parametrize("between", [add_nodes, shorten_delays])
+@pytest.mark.parametrize("between", [add_nodes, add_unsupported_targets, shorten_delays])
 def test_identical_with_changes_between_simulations(between):
     ref = build_and_run(False, threads=4, between=between)
     res = build_and_run(True, threads=4, between=between)
-    assert deferring_threads > 0, "the test must exercise the deferral"
+    assert res["deferring_threads"] > 0, "the test must exercise the deferral"
     assert_identical(ref, res)
 
 
 def test_unsupported_target_model():
-    """Targets without direct delivery are served by the regular path, before the update."""
+    """With only targets without direct delivery, every source needs a visit before the update: no thread defers."""
     ref = build_and_run(False, target_model="iaf_psc_delta")
-    assert len(ref[0]) > 100, "network must spike"
+    assert len(ref["senders"]) > 100, "network must spike"
     assert_identical(ref, build_and_run(True, target_model="iaf_psc_delta"))
 
 
@@ -174,9 +183,9 @@ def test_identical_with_poisson_input(threads, poisson_delay):
     defer the arrival steps up to the delay of the generator.
     """
     ref = build_and_run(False, threads=threads, poisson=True, poisson_delay=poisson_delay)
-    assert len(ref[0]) > 100, "network must spike"
+    assert len(ref["senders"]) > 100, "network must spike"
     res = build_and_run(True, threads=threads, poisson=True, poisson_delay=poisson_delay)
-    assert (deferring_threads > 0) == (poisson_delay > 1.5)
+    assert (res["deferring_threads"] > 0) == (poisson_delay > 1.5)
     assert_identical(ref, res)
 
 
