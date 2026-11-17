@@ -23,17 +23,23 @@
 #ifndef IAF_PSC_EXP_HPC_H
 #define IAF_PSC_EXP_HPC_H
 
+// C++ includes:
+#include <memory>
+#include <vector>
+
 // Includes from nestkernel:
 #include "archiving_node.h"
 #include "connection.h"
 #include "event.h"
 #include "nest_types.h"
 #include "recordables_map.h"
-#include "ring_buffer.h"
 #include "universal_data_logger.h"
+#include "update_block.h"
 
 namespace nest
 {
+class IafPscExpHpcBlock;
+
 // Disable clang-formatting for documentation due to over-wide table.
 // clang-format off
 /* BeginUserDocs: neuron, integrate-and-fire, current-based, hard threshold
@@ -220,6 +226,11 @@ void register_iaf_psc_exp_hpc( const std::string& name );
  * current input filtered by the excitatory synapse (receptor type 1) of iaf_psc_exp are left out, so that the update
  * of a neuron per time step contains only the propagation of the state, the threshold test and the input from one
  * buffer slot of three channels.
+ *
+ * The neurons of one Create call on one thread form a block (IafPscExpHpcBlock), which holds their state, the values
+ * derived from their parameters and their input buffer in arrays and updates them in one loop. The neuron object is
+ * a handle: it keeps the parameters, the recording and the spike history, and reads and writes its state in the
+ * block. Only the model prototype, which is never in a block, keeps its state in the object.
  */
 class iaf_psc_exp_hpc : public ArchivingNode
 {
@@ -250,15 +261,22 @@ public:
   void get_status( Dictionary& ) const override;
   void set_status( const Dictionary& ) override;
 
+  //! Form the block of the neurons nodes of one Create call on one thread (see ProvidesUpdateBlocks).
+  static std::unique_ptr< UpdateBlock > make_update_block( const std::vector< Node* >& nodes );
+
+  UpdateBlock* get_update_block() const override;
+
 private:
   void init_buffers_() override;
   void pre_run_hook() override;
 
+  //! Not called: the neurons are updated by their block (IafPscExpHpcBlock::update()).
   void update( const Time&, const long, const long ) override;
 
   // The next two classes need to be friends to access the State_ class/member
   friend class RecordablesMap< iaf_psc_exp_hpc >;
   friend class UniversalDataLogger< iaf_psc_exp_hpc >;
+  friend class IafPscExpHpcBlock;
 
   // ----------------------------------------------------------------
 
@@ -346,49 +364,22 @@ private:
       NUM_INPUT_CHANNELS
     };
 
-    //! Buffers and sums up incoming spikes and currents.
-    MultiChannelInputBuffer< NUM_INPUT_CHANNELS > input_buffer_;
-
     //! Logger for all analog data
     UniversalDataLogger< iaf_psc_exp_hpc > logger_;
   };
 
-  // ----------------------------------------------------------------
+  //! The state of the neuron: from its block, or from the object for the model prototype.
+  State_ get_state_() const;
 
-  //! Internal variables of the model.
-  struct Variables_
-  {
-    // time evolution operator
-    double P20_;
-    double P11ex_;
-    double P11in_;
-    double P21ex_;
-    double P21in_;
-    double P22_;
-
-    int RefractoryCounts_;
-  };
+  //! Write the state s and the values of the parameters that the update reads directly into the block.
+  void store_in_block_( const State_& s );
 
   // Access functions for UniversalDataLogger -------------------------------
 
   //! Read out the real membrane potential
-  inline double
-  get_V_m_() const
-  {
-    return S_.V_m_ + P_.E_L_;
-  }
-
-  inline double
-  get_I_syn_ex_() const
-  {
-    return S_.i_syn_ex_;
-  }
-
-  inline double
-  get_I_syn_in_() const
-  {
-    return S_.i_syn_in_;
-  }
+  double get_V_m_() const;
+  double get_I_syn_ex_() const;
+  double get_I_syn_in_() const;
 
   // ----------------------------------------------------------------
 
@@ -399,10 +390,12 @@ private:
    * @{
    */
   Parameters_ P_;
-  State_ S_;
-  Variables_ V_;
+  State_ S_;  //!< state of the model prototype and initial state of a new neuron; in a block, the block holds it
   Buffers_ B_;
   /** @} */
+
+  IafPscExpHpcBlock* block_ = nullptr;  //!< block of the neuron; nullptr only for the model prototype
+  size_t block_index_ = 0;              //!< index of the neuron in its block
 
   //! Mapping of recordables names to access functions
   static RecordablesMap< iaf_psc_exp_hpc > recordablesMap_;
@@ -445,35 +438,6 @@ iaf_psc_exp_hpc::handles_test_event( DataLoggingRequest& dlr, size_t receptor_ty
     throw UnknownReceptorType( receptor_type, get_name() );
   }
   return B_.logger_.connect_logging_device( dlr, recordablesMap_ );
-}
-
-inline void
-iaf_psc_exp_hpc::get_status( Dictionary& d ) const
-{
-  P_.get( d );
-  S_.get( d, P_ );
-  ArchivingNode::get_status( d );
-
-  d[ names::recordables ] = recordablesMap_.get_list();
-}
-
-inline void
-iaf_psc_exp_hpc::set_status( const Dictionary& d )
-{
-  Parameters_ ptmp = P_;                       // temporary copy in case of errors
-  const double delta_EL = ptmp.set( d, this ); // throws if BadProperty
-  State_ stmp = S_;                            // temporary copy in case of errors
-  stmp.set( d, ptmp, delta_EL, this );         // throws if BadProperty
-
-  // We now know that (ptmp, stmp) are consistent. We do not
-  // write them back to (P_, S_) before we are also sure that
-  // the properties to be set in the parent class are internally
-  // consistent.
-  ArchivingNode::set_status( d );
-
-  // if we get here, temporaries contain consistent set of properties
-  P_ = ptmp;
-  S_ = stmp;
 }
 
 } // namespace

@@ -26,6 +26,7 @@
 
 // C++ includes:
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace nest
@@ -35,9 +36,12 @@ namespace nest
  * Address of the spike input buffer of a node, see Node::get_direct_spike_input().
  *
  * The buffer is a ring of slots; slot s starts at `slot0 + stride * s` and holds one double per
- * input channel. A spike with weight w is added to the excitatory channel if w > 0 and to the
- * inhibitory channel otherwise. A default-constructed address describes a node that does not
- * support direct delivery; its spikes take the regular path through handle( SpikeEvent& ).
+ * input channel. The slots of one node need not be adjacent: in a block of neurons (iaf_psc_exp_hpc) the input
+ * buffer is ordered by slot, then neuron, so that the inputs of all neurons for one step are contiguous, and the
+ * distance between the slots of one neuron is the number of neurons times the number of channels. A spike with weight w
+ * is added to the excitatory channel if w > 0 and to the inhibitory channel otherwise. A default-constructed address
+ * describes a node that does not support direct delivery; its spikes take the regular path through handle( SpikeEvent&
+ * ).
  *
  * @note The object must not grow beyond 16 bytes (checked by a static_assert below the class): it is the
  * entry of DirectSpikeTable, which is read at a random position for every synaptic event. A separate
@@ -61,6 +65,12 @@ public:
     const unsigned char excitatory_channel,
     const unsigned char inhibitory_channel );
 
+  //! Address of an input buffer whose slot s starts at slot0 + stride * s.
+  DirectSpikeInputAddr( double* slot0,
+    const uint32_t stride,
+    const unsigned char excitatory_channel,
+    const unsigned char inhibitory_channel );
+
   //! Whether spikes can be added directly to the buffer.
   bool is_supported() const;
 
@@ -70,8 +80,8 @@ public:
 private:
   friend class DirectSpikeTable;
 
-  double* slot0_ = nullptr;               //!< first double of slot 0; nullptr if direct delivery is not supported
-  unsigned char stride_ = 0;              //!< doubles per slot
+  double* slot0_ = nullptr;  //!< first double of slot 0; nullptr if direct delivery is not supported
+  uint32_t stride_ = 0;      //!< distance between slots in doubles; 4 bytes for blocks of neurons, entry stays 16 bytes
   unsigned char excitatory_channel_ = 0;  //!< channel for spikes with positive weight
   unsigned char inhibitory_channel_ = 0;  //!< channel for spikes with weight <= 0
   bool resolved_ = false;  //!< set by DirectSpikeTable when the entry has been filled since the last clear()
@@ -81,12 +91,19 @@ template < typename BufferT >
 DirectSpikeInputAddr::DirectSpikeInputAddr( BufferT& buffer,
   const unsigned char excitatory_channel,
   const unsigned char inhibitory_channel )
-  : slot0_( buffer.slot_data() )
-  , stride_( BufferT::SLOT_STRIDE )
+  : DirectSpikeInputAddr( buffer.slot_data(), BufferT::SLOT_STRIDE, excitatory_channel, inhibitory_channel )
+{
+}
+
+inline DirectSpikeInputAddr::DirectSpikeInputAddr( double* slot0,
+  const uint32_t stride,
+  const unsigned char excitatory_channel,
+  const unsigned char inhibitory_channel )
+  : slot0_( slot0 )
+  , stride_( stride )
   , excitatory_channel_( excitatory_channel )
   , inhibitory_channel_( inhibitory_channel )
 {
-  static_assert( BufferT::SLOT_STRIDE < 256, "stride must fit into an unsigned char" );
 }
 
 inline bool

@@ -252,6 +252,13 @@ UniversalDataLogger< HostNode >::reset()
 }
 
 template < typename HostNode >
+bool
+UniversalDataLogger< HostNode >::has_loggers() const
+{
+  return not data_loggers_.empty();
+}
+
+template < typename HostNode >
 void
 UniversalDataLogger< HostNode >::init()
 {
