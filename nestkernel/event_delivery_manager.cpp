@@ -758,7 +758,7 @@ EventDeliveryManager::get_global_max_spikes_per_rank_( const SendBufferPosition&
 void
 EventDeliveryManager::deliver_events( const size_t tid )
 {
-  if ( deferred_delivery_active_ and deferred_[ tid ].active_ )
+  if ( deferred_[ tid ].active_ )
   {
     deliver_events_deferred_( tid );
     reset_spike_register_( tid );
@@ -1665,7 +1665,7 @@ EventDeliveryManager::prepare_deferred_delivery( const size_t tid )
         {
           const auto [ d_min, d_max ] = conn_manager.segment_delay_range( tid, syn_id, lcid );
           table[ idx ] = { static_cast< unsigned short >( std::min( d_min, limit ) ),
-            static_cast< unsigned short >( std::min( d_max, limit ) ) };
+            static_cast< unsigned short >( std::min( d_max, limit ) ) };  // saturated, see delays_of_
         }
       }
     }
@@ -1727,7 +1727,7 @@ EventDeliveryManager::deliver_deferred_window_( const size_t tid, DeferredEntry_
   DeliveryWindow window { dt.moduli_, dt.origin_steps_, entry.done_below_, upto, entry.cap_, first_pass, 0 };
   conn_manager.send_window( tid, entry.syn_id_, entry.lcid_, cm, se, window );
   entry.done_below_ = upto;
-  entry.next_due_ = upto == entry.cap_ ? LONG_MAX : window.next_due;
+  entry.next_due_ = upto == entry.cap_ ? LONG_MAX : window.next_due_;
 }
 
 void
@@ -1797,15 +1797,9 @@ EventDeliveryManager::deliver_events_deferred_( const size_t tid )
   // the spikes were emitted in the previous slice: stamp of lag l as prepared_timestamps in deliver_events_()
   const long stamp0 = dt.origin_steps_ + 1 - min_delay;
 
-  // entries that arrived in an earlier cycle and are still open are completed, the others get their windows
-  size_t old_end = 0;
-  while ( old_end < dt.fifo_.size() and dt.fifo_[ old_end ].arrived_ < dt.origin_steps_ - min_delay + 1 )
-  {
-    ++old_end;
-  }
-  deliver_deferred_batch_( tid, 0, old_end, LONG_MAX );
-  deliver_deferred_batch_( tid, old_end, dt.fifo_.size(), hi );
-  dt.head_ = old_end;
+  // the entries still open from the previous cycle are completed
+  deliver_deferred_batch_( tid, 0, dt.fifo_.size(), LONG_MAX );
+  dt.head_ = dt.fifo_.size();
   const size_t first_new = dt.fifo_.size();
 
   // new entries, in the order of the regular delivery
@@ -1820,32 +1814,19 @@ EventDeliveryManager::deliver_events_deferred_( const size_t tid )
       if ( d_min > 0 )
       {
         assert( not spike_data.is_flush_event() );
-        // the first visit is due now if a connection arrives in this cycle or at or beyond the cap
-        const long next_due = stamp - 1 + d_max >= cap ? LONG_MIN : stamp - 1 + d_min;
-        dt.fifo_.push_back( { syn_id,
-          idx,
-          invalid_lcid,
-          stamp,
-          spike_data.get_offset(),
-          LONG_MIN,
-          next_due,
-          cap,
-          dt.origin_steps_,
-          true } );
+        // the first visit is due now if a connection arrives in this cycle or at or beyond the cap; a saturated
+        // largest delay counts as beyond the cap (see delays_of_)
+        constexpr unsigned short saturated = std::numeric_limits< unsigned short >::max();
+        const bool reaches_cap = d_max == saturated or stamp - 1 + d_max >= cap;
+        const long next_due = reaches_cap ? LONG_MIN : stamp - 1 + d_min;
+        dt.fifo_.push_back(
+          { syn_id, idx, invalid_lcid, stamp, spike_data.get_offset(), LONG_MIN, next_due, cap, true } );
       }
     }
-    else if ( conn_manager.get_compressed_spike_data_lcid( tid, syn_id, idx ) != invalid_lcid )
+    else if ( const size_t lcid = conn_manager.get_compressed_spike_data_lcid( tid, syn_id, idx );
+      lcid != invalid_lcid )
     {
-      dt.fifo_.push_back( { syn_id,
-        idx,
-        invalid_lcid,
-        stamp,
-        spike_data.get_offset(),
-        LONG_MIN,
-        LONG_MIN,
-        cap,
-        dt.origin_steps_,
-        false } );
+      dt.fifo_.push_back( { syn_id, idx, lcid, stamp, spike_data.get_offset(), LONG_MIN, LONG_MIN, cap, false } );
     }
   };
 

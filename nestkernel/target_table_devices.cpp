@@ -207,11 +207,12 @@ long
 TargetTableDevices::min_delay_from_spike_devices( const size_t tid ) const
 {
   long min_delay = LONG_MAX;
+  assert( sending_devices_node_ids_[ tid ].size() >= target_from_devices_[ tid ].size() );
   for ( size_t ldid = 0; ldid < target_from_devices_[ tid ].size(); ++ldid )
   {
-    if ( ldid >= sending_devices_node_ids_[ tid ].size() or sending_devices_node_ids_[ tid ][ ldid ] == 0 )
+    if ( sending_devices_node_ids_[ tid ][ ldid ] == 0 )
     {
-      continue;
+      continue;  // no device with this local id sends
     }
     const Node* device = kernel().node_manager.get_node_or_proxy( sending_devices_node_ids_[ tid ][ ldid ], tid );
     if ( const auto* stimulator = dynamic_cast< const StimulationDevice* >( device ) )

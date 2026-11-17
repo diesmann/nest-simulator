@@ -1184,26 +1184,19 @@ SimulationManager::update_()
           // executes the master section after all groups are complete, then all threads leave. The synchronization
           // time therefore includes the steps of the threads that execute them.
           kernel().get_omp_synchronization_simulation_stopwatch().start();
-          const auto on_group = [ & ]( const size_t g )
-          {
-            if ( collocate_in_groups )
+          // While waiting, a thread that defers completes open entries (see
+          // EventDeliveryManager::deliver_events_deferred_()).
+          tree_barrier_->barrier_.wait(
+            tid,
+            [ & ]( const size_t g )
             {
-              kernel().event_delivery_manager.collocate_group( g );
-            }
-          };
-          if ( defer )
-          {
-            // while waiting, the thread completes deferred entries (see
-            // EventDeliveryManager::deliver_events_deferred_())
-            tree_barrier_->barrier_.wait( tid,
-              on_group,
-              master_section,
-              [ & ]() { return kernel().event_delivery_manager.deliver_deferred_one( tid ); } );
-          }
-          else
-          {
-            tree_barrier_->barrier_.wait( tid, on_group, master_section );
-          }
+              if ( collocate_in_groups )
+              {
+                kernel().event_delivery_manager.collocate_group( g );
+              }
+            },
+            master_section,
+            [ & ]() { return defer and kernel().event_delivery_manager.deliver_deferred_one( tid ); } );
           kernel().get_omp_synchronization_simulation_stopwatch().stop();
         }
         else

@@ -52,10 +52,11 @@ Connector< ConnectionT >::send_direct_( const size_t tid,
   {
     return 0;
   }
-  DeliveryWindow all {
+  // the regular delivery uses only the moduli and the slice origin of the window
+  DeliveryWindow window {
     edm.get_moduli_data(), kernel().simulation_manager.get_slice_origin().get_steps(), 0, 0, 0, true, 0
   };
-  return send_segment_< false >( tid, lcid, cp, e, all );
+  return send_segment_< false >( tid, lcid, cp, e, window );
 }
 
 template < typename ConnectionT >
@@ -67,10 +68,10 @@ Connector< ConnectionT >::send_segment_( const size_t tid,
   Event& e,
   DeliveryWindow& window )
 {
-  const long* const moduli = window.moduli;
+  const long* const moduli = window.moduli_;
   // as SpikeEvent::get_rel_delivery_steps(), without the delay
   const long stamp_m1 = e.get_stamp().get_steps() - 1;
-  const long rel0 = stamp_m1 - window.origin_steps;
+  const long rel0 = stamp_m1 - window.origin_steps_;
   long next_due = LONG_MAX;
 
   // The index advances unconditionally and the flag only decides whether the loop continues: the address of the next
@@ -90,11 +91,12 @@ Connector< ConnectionT >::send_segment_( const size_t tid,
         if constexpr ( windowed )
         {
           const long arrival = stamp_m1 + d;
-          if ( arrival >= window.cap ? window.first_pass : ( arrival >= window.lo and arrival < window.hi ) )
+          const bool beyond_cap = arrival >= window.cap_;
+          if ( beyond_cap ? window.first_pass_ : ( arrival >= window.lo_ and arrival < window.hi_ ) )
           {
             addr.add( moduli[ rel0 + d ], conn.get_weight() );
           }
-          else if ( arrival >= window.hi and arrival < window.cap )
+          else if ( not beyond_cap and arrival >= window.hi_ )
           {
             next_due = std::min( next_due, arrival );
           }
@@ -104,7 +106,7 @@ Connector< ConnectionT >::send_segment_( const size_t tid,
           addr.add( moduli[ rel0 + d ], conn.get_weight() );
         }
       }
-      else if ( not windowed or window.first_pass )
+      else if ( not windowed or window.first_pass_ )
       {
         e.set_port( i );
         conn.send( e, tid, cp );
@@ -114,7 +116,7 @@ Connector< ConnectionT >::send_segment_( const size_t tid,
     ++i;
   } while ( more_targets );
 
-  window.next_due = next_due;
+  window.next_due_ = next_due;
   return i - lcid;
 }
 
@@ -155,36 +157,31 @@ Connector< ConnectionT >::segment_delay_range( const size_t tid, const size_t lc
 {
   if constexpr ( not ConnectionT::supports_direct_delivery )
   {
-    return { 1, 0 };  // never called: such connectors do not defer
+    assert( false and "segment_delay_range() requires a connector that supports deferred delivery" );
+    return { 1, 0 };
   }
-  long min_delay = LONG_MAX;
-  long max_delay = 0;
-  size_t i = lcid;
-  bool more_targets;
-  do
+  else
   {
-    ConnectionT& conn = C_[ i ];
-    if ( not conn.is_disabled() )
+    long min_delay = LONG_MAX;
+    long max_delay = 0;
+    size_t i = lcid;
+    bool more_targets;
+    do
     {
-      const long d = conn.get_delay_steps();
-      max_delay = std::max( max_delay, d );
-      if constexpr ( ConnectionT::supports_direct_delivery )
+      ConnectionT& conn = C_[ i ];
+      if ( not conn.is_disabled() )
       {
+        const long d = conn.get_delay_steps();
+        max_delay = std::max( max_delay, d );
         // a target without direct delivery is served in the first pass, which is due at once
         min_delay = direct_table_.get( conn, tid ).is_supported() ? std::min( min_delay, d ) : 1;
       }
-      else
-      {
-        min_delay = 1;
-      }
-    }
-    more_targets = conn.source_has_more_targets();
-    ++i;
-  } while ( more_targets );
-  return { min_delay == LONG_MAX ? 1 : min_delay, max_delay };
+      more_targets = conn.source_has_more_targets();
+      ++i;
+    } while ( more_targets );
+    return { min_delay == LONG_MAX ? 1 : min_delay, max_delay };
+  }
 }
-
-
 
 template < typename ConnectionT >
 void

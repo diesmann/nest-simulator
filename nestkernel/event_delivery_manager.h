@@ -364,7 +364,6 @@ private:
     long done_below_;  //!< connections with arrival steps below are delivered; LONG_MIN before the first visit
     long next_due_;    //!< smallest arrival step not yet delivered (a lower bound), LONG_MAX when complete
     long cap_;         //!< arrival steps from here on are delivered in the first visit (spikes of devices)
-    long arrived_;     //!< slice origin of the cycle in which the entry arrived
     bool deferrable_;  //!< false: the synapse type is delivered completely in the first visit
   };
 
@@ -376,8 +375,13 @@ private:
     long origin_steps_ = 0;         //!< slice origin of the current cycle of the thread
     std::vector< DeferredEntry_ > fifo_;
     size_t head_ = 0;  //!< entries before head_ are complete
-    //! per synapse type and row of the compressed spike data: smallest delay (0: no target on the thread), largest
-    //! delay
+    /**
+     * Per synapse type and row of the compressed spike data: smallest and largest delay of the segment on the thread.
+     *
+     * The smallest is 0 if the row has no target on the thread. Stored in 16 bits, since the table is read for every
+     * spike; a larger smallest delay is stored as the maximum (the entry is visited earlier than needed), a larger
+     * largest delay as the maximum, which counts as beyond any cap (the entry is visited before the update).
+     */
     std::vector< std::vector< std::pair< unsigned short, unsigned short > > > delays_of_;
     long device_delay_ = LONG_MAX;    //!< ConnectionManager::min_delay_from_spike_devices() for the thread
     double skippable_share_ = 0.0;    //!< share of the sources whose spikes need no visit before the update
@@ -445,12 +449,15 @@ private:
    *
    * An event needs to be delivered before the update of the step in which it arrives, not before the next update. Every
    * spike entry with targets on the thread is appended to a FIFO of the thread and delivered in windows of arrival
-   * steps a = stamp - 1 + delay. Before the update of the cycle with slice origin O, the connections with a < O +
-   * min_delay are delivered: those of the open entries first, then those of the new entries, all in FIFO order. While
-   * the thread waits at the barrier, the oldest entries are completed (deliver_deferred_one()). Entries that are still
-   * open one cycle after their arrival are completed before the update: with longer waiting, a thread that had no time
-   * at the barrier accumulated entries, and PD14 became slower (measured 2026-11-16 on Intel Xeon 6980P and AMD EPYC
-   * 9754: age 1 gave 15 to 17 %, age 2 9 to 14 %).
+   * steps a = stamp - 1 + delay. Before the update of the cycle with slice origin O, the entries still open from the
+   * previous cycle are completed, then the new entries deliver their connections with a < O + min_delay, in FIFO order.
+   * While the thread waits at the barrier, it completes the oldest entries (deliver_deferred_one()). Waiting longer
+   * than one cycle did not pay: a thread that had no time at the barrier accumulated entries, and PD14 became slower
+   * (measured 2026-11-16 on Intel Xeon 6980P and AMD EPYC 9754: completion after one cycle 15 to 17 % faster than
+   * without deferral, after two cycles 9 to 14 %).
+   *
+   * Entries of synapse types that cannot be deferred are kept in the FIFO as well and delivered completely in their
+   * first visit, so that targets without direct delivery receive all spikes in the order of the regular delivery.
    *
    * Devices such as poisson_generator add their spikes to the input slots during the update. A device connection with
    * delay d reaches arrival steps from O + d on, where O is the origin of the cycle of the update. Arrival steps from

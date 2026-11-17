@@ -197,9 +197,6 @@ public:
    */
   virtual std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) = 0;
 
-
-
-
   virtual void
   send_weight_event( const size_t tid, const unsigned int lcid, Event& e, const CommonSynapseProperties& cp ) = 0;
 
@@ -550,10 +547,6 @@ public:
 
   // Implemented in connector_base_impl.h
   std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) override;
-
-
-
-
 
   void
   clear_direct_spike_table() override

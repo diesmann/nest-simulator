@@ -307,8 +307,8 @@ ConnectionManager::set_synapse_status( const size_t source_node_id,
   const Dictionary& dict )
 {
   kernel().model_manager.assert_valid_syn_id( syn_id, kernel().vp_manager.get_thread_id() );
-  synapse_status_changes_.fetch_add(
-    1, std::memory_order_relaxed );  // a delay may change, see get_synapse_status_changes()
+  // a delay may change, see get_synapse_status_changes()
+  synapse_status_changes_.fetch_add( 1, std::memory_order_relaxed );
 
   const Node* source = kernel().node_manager.get_node_or_proxy( source_node_id, tid );
   const Node* target = kernel().node_manager.get_node_or_proxy( target_node_id, tid );
