@@ -159,6 +159,9 @@ public:
   //! Erase all existing data
   void reset();
 
+  //! Whether a recording device records from the host node.
+  bool has_loggers() const;
+
   /**
    * Initialize logger, i.e., set up data buffers.
    *
