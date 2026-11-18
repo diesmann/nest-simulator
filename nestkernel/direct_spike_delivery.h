@@ -31,6 +31,8 @@
 namespace nest
 {
 
+class Node;
+
 /**
  * Address of the spike input buffer of a node, see Node::get_direct_spike_input().
  *
@@ -125,12 +127,26 @@ public:
   /**
    * Address of the input buffer of the target of connection `conn`.
    *
-   * Resolves the entry if needed: the target node is only accessed on the first spike to it.
+   * Resolves the entry if needed: the target node is only accessed on the first spike to it. Called for every spike
+   * and connection; it contains only the frequent case and leaves the first spike to a target to resolve_(). Do not
+   * merge the two: the compiler then stops inlining get() into the loops over connections (see resolve_()).
    */
   template < typename ConnectionT >
   const DirectSpikeInputAddr& get( const ConnectionT& conn, const size_t tid );
 
 private:
+  /**
+   * Resolve entry idx for the target node on its first spike; the rare part of get().
+   *
+   * Kept out of get(), so that get() is short and the compiler inlines it into the loops over connections. With both
+   * parts in one function, adding further callers of get() (the deferred spike delivery) made the compilers call get()
+   * out of line for every spike, also in the regular delivery (perf, 2026-11-17: 0.7 % of the cycles in get(); PD14
+   * 3 to 5 % slower on an Intel Xeon 6980P node, hpc_benchmark 4 % slower on an AMD EPYC 7713 node, with the deferral
+   * switched off). Defined in direct_spike_delivery.cpp and not a template: as an inline template, the Intel oneAPI
+   * compiler merged it back into get().
+   */
+  const DirectSpikeInputAddr& resolve_( const size_t idx, Node* target );
+
   //! One entry per target; the flag resolved_ of an entry lives in the padding of the address (16 bytes in total).
   std::vector< DirectSpikeInputAddr > entries_;
 };
@@ -142,21 +158,15 @@ DirectSpikeTable::clear()
 }
 
 template < typename ConnectionT >
-const DirectSpikeInputAddr&
+inline const DirectSpikeInputAddr&
 DirectSpikeTable::get( const ConnectionT& conn, const size_t tid )
 {
   const size_t idx = conn.get_target_index();
-  if ( idx >= entries_.size() )
+  if ( idx < entries_.size() and entries_[ idx ].resolved_ )
   {
-    entries_.resize( idx + 1 );
+    return entries_[ idx ];
   }
-  DirectSpikeInputAddr& entry = entries_[ idx ];
-  if ( not entry.resolved_ )
-  {
-    entry = conn.get_target( tid )->get_direct_spike_input();
-    entry.resolved_ = true;
-  }
-  return entry;
+  return resolve_( idx, conn.get_target( tid ) );
 }
 
 }  // namespace nest

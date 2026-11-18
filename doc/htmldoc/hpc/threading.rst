@@ -126,6 +126,18 @@ All of them assume that every thread has a core of its own and that the threads 
    threads of a socket read local memory. Set it to the number of sockets or NUMA nodes used by the process. Each copy
    needs additional memory.
 
+``deferred_spike_delivery``
+   With ``single_cycle_barrier`` and ``direct_spike_delivery``, a thread delivers before the update of a cycle only the
+   spikes that arrive in this cycle, and delivers the others while it waits at the barrier for the other threads. The
+   threads that finish early thus do work that would otherwise make the cycle longer. It pays off for models whose
+   delays are spread over many simulation steps above the minimum delay, such as the delays drawn from distributions in
+   cortical network models, and with many threads per process, where the waiting at the barrier is a large part of the
+   cycle. If all delays equal the minimum delay, nothing can be deferred and the setting has no effect. Spikes that
+   devices such as ``poisson_generator`` send to the same neurons limit how far spikes can be deferred: the longer the
+   delay of these devices, the more can be deferred. A thread defers only if most of its spikes need not be delivered
+   before the next update; after a simulation, ``deferred_spike_delivery_threads`` gives the number of threads that
+   deferred.
+
 With bound threads, NEST forms the groups and blocks along the NUMA nodes of the threads (see below). An example for one
 process with 128 threads on a node with two sockets of 64 cores each:
 
@@ -143,6 +155,8 @@ process with 128 threads on a node with two sockets of 64 cores each:
        single_cycle_barrier=True,
        collocation_groups=2,
        compressed_spike_data_copies=2,
+       direct_spike_delivery=True,
+       deferred_spike_delivery=True,
    )
 
 With one process per socket instead, each process uses one socket, and ``collocation_groups`` and

@@ -26,7 +26,9 @@
 // C++ includes:
 #include <atomic>
 #include <cassert>
+#include <climits>
 #include <limits>
+#include <utility>
 #include <vector>
 
 // Includes from libnestutil:
@@ -179,6 +181,39 @@ public:
   //! Whether Connector::send() may deliver spikes directly into the input buffers of the targets.
   bool get_direct_spike_delivery() const;
 
+  /**
+   * Decide before a simulation whether the threads defer the delivery of spikes; not thread safe.
+   *
+   * The kernel parameter deferred_spike_delivery takes effect only with direct spike delivery, the single barrier per
+   * cycle, compressed spikes and delays larger than the minimum delay; see deliver_events_deferred_().
+   */
+  void configure_deferred_delivery( const bool single_cycle_barrier );
+
+  //! The connection infrastructure was rebuilt; the tables of the deferred delivery must be rebuilt.
+  void invalidate_deferred_tables();
+
+  //! Whether the threads defer the delivery of spikes in this simulation.
+  bool is_deferred_delivery_active() const;
+
+  /**
+   * Prepare the deferred delivery of thread tid at the start of a simulation.
+   *
+   * Builds the table of the smallest delay per source and synapse type if the connections changed, and decides whether
+   * the thread defers: a thread whose targets with direct spike delivery also receive spikes through a synapse type
+   * without it delivers as before, since the order of the additions to an input slot would change.
+   */
+  void prepare_deferred_delivery( const size_t tid );
+
+  /**
+   * Complete the oldest open entry of thread tid; false if there is none.
+   *
+   * Called by the thread while it waits at the barrier, see TreeBarrier::wait().
+   */
+  bool deliver_deferred_one( const size_t tid );
+
+  //! Deliver all open entries of thread tid at the end of a simulation, with the time base of the current clock.
+  void finish_deferred_delivery( const size_t tid );
+
 
   /**
    * Index to slice-based buffer.
@@ -318,6 +353,43 @@ public:
 #endif
 
 private:
+  //! A spike entry in the FIFO of the deferred delivery of a thread.
+  struct DeferredEntry_
+  {
+    synindex syn_id_;
+    size_t idx_;       //!< row in the compressed spike data
+    size_t lcid_;      //!< start of the segment on the thread; invalid_lcid until the first visit
+    long stamp_;       //!< time stamp of the spike in steps
+    double offset_;    //!< offset of the spike for off-grid spiking
+    long done_below_;  //!< connections with arrival steps below are delivered; LONG_MIN before the first visit
+    long next_due_;    //!< smallest arrival step not yet delivered (a lower bound), LONG_MAX when complete
+    long cap_;         //!< arrival steps from here on are delivered in the first visit (spikes of devices)
+    bool deferrable_;  //!< false: the synapse type is delivered completely in the first visit
+  };
+
+  //! State of the deferred delivery of one thread; written only by its thread.
+  struct alignas( 64 ) DeferredThread_
+  {
+    bool active_ = false;           //!< whether the thread defers in this simulation
+    const long* moduli_ = nullptr;  //!< moduli of the current cycle of the thread
+    long origin_steps_ = 0;         //!< slice origin of the current cycle of the thread
+    std::vector< DeferredEntry_ > fifo_;
+    size_t head_ = 0;  //!< entries before head_ are complete
+    /**
+     * Per synapse type and row of the compressed spike data: smallest and largest delay of the segment on the thread.
+     *
+     * The smallest is 0 if the row has no target on the thread. Stored in 16 bits, since the table is read for every
+     * spike; a larger smallest delay is stored as the maximum (the entry is visited earlier than needed), a larger
+     * largest delay as the maximum, which counts as beyond any cap (the entry is visited before the update).
+     */
+    std::vector< std::vector< std::pair< unsigned short, unsigned short > > > delays_of_;
+    long device_delay_ = LONG_MAX;    //!< ConnectionManager::min_delay_from_spike_devices() for the thread
+    double skippable_share_ = 0.0;    //!< share of the sources whose spikes need no visit before the update
+    std::vector< char > deferrable_;  //!< per synapse type
+    bool tables_valid_ = false;       //!< delays_of_ and device_delay_ fit the connections
+    size_t status_changes_ = 0;       //!< ConnectionManager::get_synapse_status_changes() when the tables were built
+  };
+
   template < typename SpikeDataT >
   void gather_spike_data_( std::vector< SpikeDataT >& send_buffer, std::vector< SpikeDataT >& recv_buffer );
 
@@ -371,6 +443,48 @@ private:
 
   //! Delivers events directly from the buffers of the groups (single MPI process, see use_group_collocation()).
   void deliver_events_from_groups_( const size_t tid );
+
+  /**
+   * Delivery before the update with deferral (kernel parameter deferred_spike_delivery).
+   *
+   * An event needs to be delivered before the update of the step in which it arrives, not before the next update. Every
+   * spike entry with targets on the thread is appended to a FIFO of the thread and delivered in windows of arrival
+   * steps a = stamp - 1 + delay. Before the update of the cycle with slice origin O, the entries still open from the
+   * previous cycle are completed, then the new entries deliver their connections with a < O + min_delay, in FIFO order.
+   * While the thread waits at the barrier, it completes the oldest entries (deliver_deferred_one()). Waiting longer
+   * than one cycle did not pay: a thread that had no time at the barrier accumulated entries, and PD14 became slower
+   * (measured 2026-11-16 on Intel Xeon 6980P and AMD EPYC 9754: completion after one cycle 15 to 17 % faster than
+   * without deferral, after two cycles 9 to 14 %).
+   *
+   * Entries of synapse types that cannot be deferred are kept in the FIFO as well and delivered completely in their
+   * first visit, so that targets without direct delivery receive all spikes in the order of the regular delivery.
+   *
+   * Devices such as poisson_generator add their spikes to the input slots during the update. A device connection with
+   * delay d reaches arrival steps from O + d on, where O is the origin of the cycle of the update. Arrival steps from
+   * this cap on (with the smallest delay from such a device to a target with direct delivery on the thread) are
+   * therefore delivered in the first visit of an entry, before the update; only the arrival steps between the next
+   * cycle and the cap are deferred. Then every input slot receives its additions in the order of the regular
+   * delivery: the contributions of one entry to one slot all have the same arrival step and fall into the same pass,
+   * per slot the contributions of older entries precede those of younger ones, and no deferred contribution goes to a
+   * slot that a device reaches in the meantime. The results are the same as with the regular delivery.
+   *
+   * A thread defers only if at least half of its sources need no visit before the update (see
+   * prepare_deferred_delivery()); with devices whose delays are as short as those of the network, almost every entry
+   * would be visited twice.
+   */
+  void deliver_events_deferred_( const size_t tid );
+
+  /**
+   * Deliver the windows up to hi of the entries [ begin, end ) of the FIFO of thread tid that have a connection below
+   * hi.
+   *
+   * In batches: the look-ups in the compressed spike data of a batch are prefetched together, then its first
+   * connections, then the events are delivered; a look-up and a first connection each miss the cache.
+   */
+  void deliver_deferred_batch_( const size_t tid, const size_t begin, const size_t end, const long hi );
+
+  //! Deliver the window [ entry.done_below, hi ) of one entry and advance the entry.
+  void deliver_deferred_window_( const size_t tid, DeferredEntry_& entry, const long hi );
 
   //! Copies the buffers of the groups into the send buffer like collocate_spike_data_buffers_() does for the registers.
   template < typename SpikeDataT >
@@ -626,6 +740,10 @@ private:
   Stopwatch< StopwatchGranularity::Detailed, StopwatchParallelism::MasterOnly > sw_collocate_spike_data_;
   Stopwatch< StopwatchGranularity::Detailed, StopwatchParallelism::MasterOnly > sw_communicate_spike_data_;
   Stopwatch< StopwatchGranularity::Detailed, StopwatchParallelism::MasterOnly > sw_communicate_target_data_;
+
+  bool deferred_spike_delivery_;   //!< kernel parameter deferred_spike_delivery
+  bool deferred_delivery_active_;  //!< decided by configure_deferred_delivery()
+  std::vector< DeferredThread_ > deferred_;
 };
 
 inline void
@@ -658,6 +776,12 @@ inline bool
 EventDeliveryManager::get_direct_spike_delivery() const
 {
   return direct_spike_delivery_;
+}
+
+inline bool
+EventDeliveryManager::is_deferred_delivery_active() const
+{
+  return deferred_delivery_active_;
 }
 
 inline bool

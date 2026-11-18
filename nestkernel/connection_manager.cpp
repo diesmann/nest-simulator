@@ -307,6 +307,8 @@ ConnectionManager::set_synapse_status( const size_t source_node_id,
   const Dictionary& dict )
 {
   kernel().model_manager.assert_valid_syn_id( syn_id, kernel().vp_manager.get_thread_id() );
+  // a delay may change, see get_synapse_status_changes()
+  synapse_status_changes_.fetch_add( 1, std::memory_order_relaxed );
 
   const Node* source = kernel().node_manager.get_node_or_proxy( source_node_id, tid );
   const Node* target = kernel().node_manager.get_node_or_proxy( target_node_id, tid );
@@ -2043,6 +2045,37 @@ ConnectionManager::initialize_iteration_state()
   {
     iteration_state_.push_back( std::pair< size_t, std::map< size_t, CSDMapEntry >::const_iterator >( 0, begin ) );
   }
+}
+
+size_t
+ConnectionManager::get_num_compressed_spike_data( const size_t tid, const synindex syn_id ) const
+{
+  if ( compressed_spike_data_blocks_.empty() )
+  {
+    return syn_id < compressed_spike_data_.size() ? compressed_spike_data_[ syn_id ].size() : 0;
+  }
+  const auto& block = compressed_spike_data_blocks_[ compressed_spike_data_block_of_[ tid ] ];
+  return syn_id < block.size() ? block[ syn_id ].size() : 0;
+}
+
+bool
+ConnectionManager::has_direct_target( const size_t tid, const synindex syn_id ) const
+{
+  // through the interface of ConnectorBase, so that the code is not instantiated for every synapse type
+  const ConnectorBase* connector = connections_[ tid ][ syn_id ];
+  if ( not connector )
+  {
+    return false;
+  }
+  for ( size_t lcid = 0; lcid < connector->size(); ++lcid )
+  {
+    Node* target = kernel().node_manager.get_node_or_proxy( connector->get_target_node_id( tid, lcid ), tid );
+    if ( target->get_direct_spike_input().is_supported() )
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace nest
