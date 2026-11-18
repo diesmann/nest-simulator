@@ -112,6 +112,14 @@ public:
   void send_from_device( const size_t tid, const size_t ldid, Event& e, const std::vector< ConnectorModel* >& cm );
 
   /**
+   * Smallest delay in steps from a device that may send spikes to a target with direct spike delivery on thread tid.
+   *
+   * Devices that send currents, data or rates and recording devices are not counted; any other device is, since it may
+   * send spikes. LONG_MAX if there is no such connection.
+   */
+  long min_delay_from_spike_devices( const size_t tid ) const;
+
+  /**
    * Resizes vectors according to number of local nodes.
    */
   void resize_to_number_of_neurons();

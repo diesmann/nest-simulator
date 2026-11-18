@@ -28,6 +28,7 @@
 
 // C++ includes:
 #include <cstdlib>
+#include <utility>
 #include <vector>
 
 // Includes from libnestutil:
@@ -40,6 +41,7 @@
 #include "connection_id.h"
 #include "connection_label.h"
 #include "connector_model.h"
+#include "delivery_window.h"
 #include "direct_spike_delivery.h"
 #include "event.h"
 #include "nest_names.h"
@@ -169,6 +171,31 @@ public:
    * A hint for the processor without effect on the simulation; see EventDeliveryManager::deliver_events_prefetch_().
    */
   virtual void prefetch_connection( const size_t lcid ) const = 0;
+
+  /**
+   * Whether the spikes of this connector can be delivered in windows of arrival steps (deferred spike delivery).
+   *
+   * True for synapse types with direct spike delivery while it is switched on and no weight recorder is attached.
+   */
+  virtual bool supports_deferred_delivery( const std::vector< ConnectorModel* >& cm ) const = 0;
+
+  /**
+   * Deliver the connections of the segment starting at lcid whose arrival steps lie in the window.
+   *
+   * Only for connectors with supports_deferred_delivery(); see DeliveryWindow.
+   */
+  virtual void send_window( const size_t tid,
+    const size_t lcid,
+    const std::vector< ConnectorModel* >& cm,
+    SpikeEvent& e,
+    DeliveryWindow& window ) = 0;
+
+  /**
+   * Smallest and largest delay in steps of the connections of the segment starting at lcid.
+   *
+   * The smallest is 1 if the segment has a target without direct spike delivery, since such a target is served at once.
+   */
+  virtual std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) = 0;
 
   virtual void
   send_weight_event( const size_t tid, const unsigned int lcid, Event& e, const CommonSynapseProperties& cp ) = 0;
@@ -494,6 +521,32 @@ public:
    */
   size_t
   send_direct_( const size_t tid, const size_t lcid, const typename ConnectionT::CommonPropertiesType& cp, Event& e );
+
+  /**
+   * Loop of send_direct_() over the segment starting at lcid; with windowed, only arrival steps in the window.
+   *
+   * One loop serves the regular and the deferred delivery, so that both treat the connections alike; the regular one
+   * is compiled without the comparisons of the window. Implemented in connector_base_impl.h
+   */
+  template < bool windowed >
+  size_t send_segment_( const size_t tid,
+    const size_t lcid,
+    const typename ConnectionT::CommonPropertiesType& cp,
+    Event& e,
+    DeliveryWindow& window );
+
+  // Implemented in connector_base_impl.h
+  bool supports_deferred_delivery( const std::vector< ConnectorModel* >& cm ) const override;
+
+  // Implemented in connector_base_impl.h
+  void send_window( const size_t tid,
+    const size_t lcid,
+    const std::vector< ConnectorModel* >& cm,
+    SpikeEvent& e,
+    DeliveryWindow& window ) override;
+
+  // Implemented in connector_base_impl.h
+  std::pair< long, long > segment_delay_range( const size_t tid, const size_t lcid ) override;
 
   void
   clear_direct_spike_table() override

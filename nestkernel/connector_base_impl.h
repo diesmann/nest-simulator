@@ -23,6 +23,8 @@
 #include "connector_base.h"
 
 // C++ includes:
+#include <algorithm>
+#include <climits>
 #include <typeinfo>
 
 // Includes from nestkernel:
@@ -50,10 +52,27 @@ Connector< ConnectionT >::send_direct_( const size_t tid,
   {
     return 0;
   }
+  // the regular delivery uses only the moduli and the slice origin of the window
+  DeliveryWindow window {
+    edm.get_moduli_data(), kernel().simulation_manager.get_slice_origin().get_steps(), 0, 0, 0, true, 0
+  };
+  return send_segment_< false >( tid, lcid, cp, e, window );
+}
 
-  const long* const moduli = edm.get_moduli_data();
+template < typename ConnectionT >
+template < bool windowed >
+size_t
+Connector< ConnectionT >::send_segment_( const size_t tid,
+  const size_t lcid,
+  const typename ConnectionT::CommonPropertiesType& cp,
+  Event& e,
+  DeliveryWindow& window )
+{
+  const long* const moduli = window.moduli_;
   // as SpikeEvent::get_rel_delivery_steps(), without the delay
-  const long rel0 = e.get_stamp().get_steps() - 1 - kernel().simulation_manager.get_slice_origin().get_steps();
+  const long stamp_m1 = e.get_stamp().get_steps() - 1;
+  const long rel0 = stamp_m1 - window.origin_steps_;
+  long next_due = LONG_MAX;
 
   // The index advances unconditionally and the flag only decides whether the loop continues: the address of the next
   // connection must not depend on data of the current one, so that the loads of consecutive connections can overlap.
@@ -68,9 +87,26 @@ Connector< ConnectionT >::send_direct_( const size_t tid,
       const DirectSpikeInputAddr& addr = direct_table_.get( conn, tid );
       if ( addr.is_supported() )
       {
-        addr.add( moduli[ rel0 + conn.get_delay_steps() ], conn.get_weight() );
+        const long d = conn.get_delay_steps();
+        if constexpr ( windowed )
+        {
+          const long arrival = stamp_m1 + d;
+          const bool beyond_cap = arrival >= window.cap_;
+          if ( beyond_cap ? window.first_pass_ : ( arrival >= window.lo_ and arrival < window.hi_ ) )
+          {
+            addr.add( moduli[ rel0 + d ], conn.get_weight() );
+          }
+          else if ( not beyond_cap and arrival >= window.hi_ )
+          {
+            next_due = std::min( next_due, arrival );
+          }
+        }
+        else
+        {
+          addr.add( moduli[ rel0 + d ], conn.get_weight() );
+        }
       }
-      else
+      else if ( not windowed or window.first_pass_ )
       {
         e.set_port( i );
         conn.send( e, tid, cp );
@@ -80,7 +116,71 @@ Connector< ConnectionT >::send_direct_( const size_t tid,
     ++i;
   } while ( more_targets );
 
+  window.next_due_ = next_due;
   return i - lcid;
+}
+
+template < typename ConnectionT >
+bool
+Connector< ConnectionT >::supports_deferred_delivery( const std::vector< ConnectorModel* >& cm ) const
+{
+  if constexpr ( ConnectionT::supports_direct_delivery )
+  {
+    const auto& cp = static_cast< GenericConnectorModel< ConnectionT >* >( cm[ syn_id_ ] )->get_common_properties();
+    return kernel().event_delivery_manager.get_direct_spike_delivery() and cp.get_weight_recorder() == nullptr;
+  }
+  return false;
+}
+
+template < typename ConnectionT >
+void
+Connector< ConnectionT >::send_window( const size_t tid,
+  const size_t lcid,
+  const std::vector< ConnectorModel* >& cm,
+  SpikeEvent& e,
+  DeliveryWindow& window )
+{
+  if constexpr ( ConnectionT::supports_direct_delivery )
+  {
+    const auto& cp = static_cast< GenericConnectorModel< ConnectionT >* >( cm[ syn_id_ ] )->get_common_properties();
+    send_segment_< true >( tid, lcid, cp, e, window );
+  }
+  else
+  {
+    assert( false and "send_window() requires a connector that supports deferred delivery" );
+  }
+}
+
+template < typename ConnectionT >
+std::pair< long, long >
+Connector< ConnectionT >::segment_delay_range( const size_t tid, const size_t lcid )
+{
+  if constexpr ( not ConnectionT::supports_direct_delivery )
+  {
+    assert( false and "segment_delay_range() requires a connector that supports deferred delivery" );
+    return { 1, 0 };
+  }
+  else
+  {
+    long min_delay = LONG_MAX;
+    long max_delay = 0;
+    size_t i = lcid;
+    bool more_targets;
+    do
+    {
+      ConnectionT& conn = C_[ i ];
+      if ( not conn.is_disabled() )
+      {
+        const long d = conn.get_delay_steps();
+        max_delay = std::max( max_delay, d );
+        // a target without direct delivery is served in the first pass, which is due at once
+        min_delay = direct_table_.get( conn, tid ).is_supported() ? std::min( min_delay, d ) : 1;
+      }
+      more_targets = conn.source_has_more_targets();
+      ++i;
+    } while ( more_targets );
+    return { min_delay == LONG_MAX ? 1 : min_delay, max_delay };
+  }
 }
 
 template < typename ConnectionT >

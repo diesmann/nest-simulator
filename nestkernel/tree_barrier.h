@@ -79,6 +79,16 @@ public:
   template < typename OnGroup, typename OnRoot >
   void wait( const size_t tid, OnGroup&& on_group, OnRoot&& on_root );
 
+  /**
+   * As wait() with steps; a thread that waits calls idle() between checks of the flag.
+   *
+   * idle() does a small piece of work and returns false when it has none; then the thread spins as in wait(). The
+   * piece must be short, since the thread notices the release only after it (see deferred spike delivery,
+   * EventDeliveryManager::deliver_deferred_one()).
+   */
+  template < typename OnGroup, typename OnRoot, typename Idle >
+  void wait( const size_t tid, OnGroup&& on_group, OnRoot&& on_root, Idle&& idle );
+
 private:
   /**
    * Counter or flag of the barrier on a cache line of its own.
@@ -105,8 +115,9 @@ private:
   //! Hint to the processor that the thread is spinning.
   static void pause_();
 
-  //! Spin until the flag has the given value.
-  static void spin_( const Padded_& flag, const int value );
+  //! Spin until the flag has the given value; between checks, call idle() until it returns false.
+  template < typename Idle >
+  static void spin_( const Padded_& flag, const int value, Idle&& idle );
 
   //! Flip the sense of thread tid and return the new sense.
   int flip_sense_( const size_t tid );
@@ -208,12 +219,19 @@ TreeBarrier::wait( const size_t tid )
     global_sense_.value_.store( sense, std::memory_order_release );
     return;
   }
-  spin_( global_sense_, sense );
+  spin_( global_sense_, sense, []() { return false; } );
 }
 
 template < typename OnGroup, typename OnRoot >
 inline void
 TreeBarrier::wait( const size_t tid, OnGroup&& on_group, OnRoot&& on_root )
+{
+  wait( tid, on_group, on_root, []() { return false; } );
+}
+
+template < typename OnGroup, typename OnRoot, typename Idle >
+inline void
+TreeBarrier::wait( const size_t tid, OnGroup&& on_group, OnRoot&& on_root, Idle&& idle )
 {
   const int sense = flip_sense_( tid );
   if ( arrive_in_group_( tid ) )
@@ -223,26 +241,32 @@ TreeBarrier::wait( const size_t tid, OnGroup&& on_group, OnRoot&& on_root )
   }
   if ( tid == 0 )
   {
-    spin_( groups_arrived_, static_cast< int >( num_groups_ ) );
+    spin_( groups_arrived_, static_cast< int >( num_groups_ ), idle );
     groups_arrived_.value_.store( 0, std::memory_order_relaxed );
     on_root();
     global_sense_.value_.store( sense, std::memory_order_release );
     return;
   }
-  spin_( global_sense_, sense );
+  spin_( global_sense_, sense, idle );
 }
 
+template < typename Idle >
 inline void
-TreeBarrier::spin_( const Padded_& flag, const int value )
+TreeBarrier::spin_( const Padded_& flag, const int value, Idle&& idle )
 {
+  bool has_work = true;
   size_t spins = 0;
   while ( flag.value_.load( std::memory_order_acquire ) != value )
   {
-    pause_();
-    if ( ++spins > 20000 )
+    has_work = has_work and idle();
+    if ( not has_work )
     {
-      std::this_thread::yield();
-      spins = 0;
+      pause_();
+      if ( ++spins > 20000 )
+      {
+        std::this_thread::yield();
+        spins = 0;
+      }
     }
   }
 }

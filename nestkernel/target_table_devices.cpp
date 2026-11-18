@@ -20,9 +20,14 @@
  *
  */
 
+// C++ includes:
+#include <algorithm>
+#include <climits>
+
 // Includes from nestkernel:
 #include "connector_base.h"
 #include "kernel_manager.h"
+#include "stimulation_device.h"
 #include "target_table_devices_impl.h"
 #include "vp_manager_impl.h"
 
@@ -196,6 +201,50 @@ TargetTableDevices::get_connections( const size_t requested_source_node_id,
   // collect all connections from devices
   get_connections_from_devices_(
     requested_source_node_id, requested_target_node_id, tid, syn_id, synapse_label, conns );
+}
+
+long
+TargetTableDevices::min_delay_from_spike_devices( const size_t tid ) const
+{
+  long min_delay = LONG_MAX;
+  assert( sending_devices_node_ids_[ tid ].size() >= target_from_devices_[ tid ].size() );
+  for ( size_t ldid = 0; ldid < target_from_devices_[ tid ].size(); ++ldid )
+  {
+    if ( sending_devices_node_ids_[ tid ][ ldid ] == 0 )
+    {
+      continue;  // no device with this local id sends
+    }
+    const Node* device = kernel().node_manager.get_node_or_proxy( sending_devices_node_ids_[ tid ][ ldid ], tid );
+    if ( const auto* stimulator = dynamic_cast< const StimulationDevice* >( device ) )
+    {
+      if ( stimulator->get_type() != StimulationDevice::Type::SPIKE_GENERATOR )
+      {
+        continue;  // currents, data or rates do not enter the spike channels of the input buffers
+      }
+    }
+    else if ( device->get_element_type() == names::recorder )
+    {
+      continue;  // a multimeter sends data logging requests
+    }
+    for ( const ConnectorBase* connector : target_from_devices_[ tid ][ ldid ] )
+    {
+      if ( connector )
+      {
+        // through the interface of ConnectorBase, so that the code is not instantiated for every synapse type
+        for ( size_t lcid = 0; lcid < connector->size(); ++lcid )
+        {
+          Node* target = kernel().node_manager.get_node_or_proxy( connector->get_target_node_id( tid, lcid ), tid );
+          if ( target->get_direct_spike_input().is_supported() )
+          {
+            Dictionary status;
+            connector->get_synapse_status( tid, lcid, status );
+            min_delay = std::min( min_delay, Time::delay_ms_to_steps( status.get< double >( names::delay ) ) );
+          }
+        }
+      }
+    }
+  }
+  return min_delay;
 }
 
 }  // namespace nest
