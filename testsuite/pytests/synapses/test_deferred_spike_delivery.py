@@ -102,18 +102,23 @@ def assert_identical(a, b):
         np.testing.assert_array_equal(a[key], b[key])
 
 
+def within_delay_extrema(syn):
+    """Synapse specification whose delays lie within the delay extrema, which cannot change after Simulate."""
+    return dict(syn, delay=nest.math.redraw(syn["delay"], min=nest.min_delay, max=nest.max_delay))
+
+
 def add_nodes(neurons, rec, syn_ex):
     """New nodes and connections: the tables of the deferred delivery must be rebuilt."""
     new = nest.Create("iaf_psc_exp", 20, params={"I_e": 380.0})
-    nest.Connect(neurons[:40], new, {"rule": "fixed_indegree", "indegree": 10}, syn_ex)
-    nest.Connect(new, neurons[:40], {"rule": "fixed_indegree", "indegree": 5}, syn_ex)
+    nest.Connect(neurons[:40], new, {"rule": "fixed_indegree", "indegree": 10}, within_delay_extrema(syn_ex))
+    nest.Connect(new, neurons[:40], {"rule": "fixed_indegree", "indegree": 5}, within_delay_extrema(syn_ex))
     nest.Connect(new, rec)
 
 
 def add_unsupported_targets(neurons, rec, syn_ex):
     """Targets without direct delivery among the targets of some sources: they are served in the first visit."""
     delta = nest.Create("iaf_psc_delta", 20, params={"I_e": 380.0})
-    nest.Connect(neurons[:20], delta, {"rule": "fixed_indegree", "indegree": 5}, syn_ex)
+    nest.Connect(neurons[:20], delta, {"rule": "fixed_indegree", "indegree": 5}, within_delay_extrema(syn_ex))
     nest.Connect(delta, rec)
 
 
