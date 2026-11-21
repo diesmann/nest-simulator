@@ -1624,7 +1624,10 @@ EventDeliveryManager::prepare_deferred_delivery( const size_t tid )
   DeferredThread_& dt = deferred_[ tid ];
   assert( dt.fifo_.empty() );
   dt.active_ = false;
-  if ( not deferred_delivery_active_ )
+  // Thread 0 does not defer. At the barrier it waits for the groups and then exchanges the spikes with the other
+  // processes, so it has no idle time in which to complete deferred entries; it would complete them before its next
+  // update, on the path to the next barrier. With a single thread per process, the deferral therefore has no effect.
+  if ( not deferred_delivery_active_ or tid == 0 )
   {
     return;
   }
