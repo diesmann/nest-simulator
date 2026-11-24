@@ -280,7 +280,8 @@ EventDeliveryManager::configure_spike_data_buffers()
   assert( emitted_spikes_register_.size() == num_threads );
   // groups of consecutive threads, aligned with the NUMA nodes of the threads
   const std::vector< size_t > bounds = kernel().vp_manager.get_thread_blocks( collocation_groups_ );
-  group_buffers_ = std::vector< CollocationGroup_ >( bounds.size() - 1 );  // not assign(): the groups hold atomics
+  // the groups are constructed in place: they hold atomics and cannot be copied
+  group_buffers_ = std::vector< CollocationGroup_ >( bounds.size() - 1 );
   for ( size_t g = 0; g < group_buffers_.size(); ++g )
   {
     group_buffers_[ g ].first_thread_ = bounds[ g ];
