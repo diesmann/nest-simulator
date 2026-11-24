@@ -23,7 +23,8 @@
 #include "event_delivery_manager.h"
 
 // C++ includes:
-#include <algorithm>  // rotate, ranges::find, min
+#include <algorithm>  // rotate, ranges::find, ranges::upper_bound, min
+#include <bit>        // countr_zero
 #include <climits>    // LONG_MIN, LONG_MAX
 #include <numeric>    // accumulate
 #include <thread>     // this_thread::yield
@@ -275,15 +276,20 @@ EventDeliveryManager::configure_spike_data_buffers()
 
   // buffers for the collocation by several threads (allocated here, not in the parallel region)
   // collocation_group_begin_() ends the last group at the number of spike registers
-  assert( emitted_spikes_register_.size() == kernel().vp_manager.get_num_threads() );
+  const size_t num_threads = kernel().vp_manager.get_num_threads();
+  assert( emitted_spikes_register_.size() == num_threads );
   // groups of consecutive threads, aligned with the NUMA nodes of the threads
   const std::vector< size_t > bounds = kernel().vp_manager.get_thread_blocks( collocation_groups_ );
-  group_buffers_.assign( bounds.size() - 1, CollocationGroup_() );
+  group_buffers_ = std::vector< CollocationGroup_ >( bounds.size() - 1 );
   for ( size_t g = 0; g < group_buffers_.size(); ++g )
   {
     group_buffers_[ g ].first_thread_ = bounds[ g ];
     group_buffers_[ g ].spikes_.resize( kernel().mpi_manager.get_num_processes() );
     group_buffers_[ g ].spikes_next_.resize( kernel().mpi_manager.get_num_processes() );
+    // sized for all threads, so that any division into groups fits
+    group_buffers_[ g ].occupancy_ =
+      std::make_unique< OccupancyWord_[] >( ( num_threads + OccupancyWord_::NUM_BITS - 1 ) / OccupancyWord_::NUM_BITS );
+    group_buffers_[ g ].marked_.reserve( num_threads );
   }
 
   send_buffer_spike_data_.clear();
@@ -421,6 +427,21 @@ EventDeliveryManager::collocate_groups( const size_t tid )
 }
 
 void
+EventDeliveryManager::mark_register( const size_t tid )
+{
+  if ( emitted_spikes_register_[ tid ]->empty() )
+  {
+    return;
+  }
+  // the group of tid is the last one that begins at or before tid
+  auto& group = *( std::ranges::upper_bound( group_buffers_, tid, {}, &CollocationGroup_::first_thread_ ) - 1 );
+  const size_t i = tid - group.first_thread_;
+  // relaxed: the barrier orders the marks before the collocation of the group (see CollocationGroup_::occupancy_)
+  group.occupancy_[ i / OccupancyWord_::NUM_BITS ].bits_.fetch_or(
+    uint64_t( 1 ) << ( i % OccupancyWord_::NUM_BITS ), std::memory_order_relaxed );
+}
+
+void
 EventDeliveryManager::collocate_group( const size_t g )
 {
   const size_t first = collocation_group_begin_( g );
@@ -434,7 +455,30 @@ EventDeliveryManager::collocate_group( const size_t g )
   {
     buffer.clear();
   }
-  for ( size_t t = first; t < last; ++t )
+  // Visit only the marked registers, in the order of the threads. The cache lines of the registers are requested in two
+  // batches, first all vector headers, then all data, so that their transfers from the cores of the group overlap
+  // instead of following one another (group prefetching).
+  auto& marked = group_buffers_[ g ].marked_;
+  marked.clear();
+  for ( size_t w = 0; w * OccupancyWord_::NUM_BITS < last - first; ++w )
+  {
+    auto bits = group_buffers_[ g ].occupancy_[ w ].bits_.exchange( 0, std::memory_order_relaxed );
+    while ( bits != 0 )
+    {
+      marked.push_back( first + w * OccupancyWord_::NUM_BITS + std::countr_zero( bits ) );
+      bits &= bits - 1;  // clear the lowest set bit
+    }
+  }
+  assert( marked.empty() or marked.back() < last );
+  for ( const auto t : marked )
+  {
+    __builtin_prefetch( emitted_spikes_register_[ t ] );
+  }
+  for ( const auto t : marked )
+  {
+    __builtin_prefetch( emitted_spikes_register_[ t ]->data() );
+  }
+  for ( const auto t : marked )
   {
     for ( const SpikeDataWithRank& e : *emitted_spikes_register_[ t ] )
     {
@@ -652,6 +696,22 @@ EventDeliveryManager::concatenate_group_buffers_( SendBufferPosition& send_buffe
   // keep the behaviour when a chunk is full: all spikes are counted, only those that fit are
   // written, and the caller repeats the call with a larger send buffer.
   //
+  // The buffers were written by the collocating threads on other cores. Request their cache lines in two batches,
+  // first all vector headers, then all data, so that the transfers overlap (as in collocate_group()).
+  for ( const auto& group : group_buffers_ )
+  {
+    for ( const auto& spikes : group.spikes_ )
+    {
+      __builtin_prefetch( &spikes );
+    }
+  }
+  for ( const auto& group : group_buffers_ )
+  {
+    for ( const auto& spikes : group.spikes_ )
+    {
+      __builtin_prefetch( spikes.data() );
+    }
+  }
   // as in collocate_spike_data_buffers_(): all spikes are counted, only those that fit into the chunk are written
   for ( const auto& group : group_buffers_ )
   {

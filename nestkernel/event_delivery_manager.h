@@ -27,7 +27,9 @@
 #include <atomic>
 #include <cassert>
 #include <climits>
+#include <cstdint>
 #include <limits>
+#include <memory>  // unique_ptr
 #include <utility>
 #include <vector>
 
@@ -271,9 +273,17 @@ public:
    * Collocation of group g, by any one thread, after all threads of the group have finished their update.
    *
    * Called by collocate_groups() (first thread of the group, two barriers) and as the group step of the single barrier
-   * (last thread of the group to arrive, see TreeBarrier).
+   * (last thread of the group to arrive, see TreeBarrier). Visits only the registers marked by mark_register().
    */
   void collocate_group( const size_t g );
+
+  /**
+   * Marks the spike register of thread tid as occupied in the occupancy bitmap of its collocation group.
+   *
+   * Called by every thread before it arrives at the barrier of a cycle in which the groups collocate; a thread with an
+   * empty register sets no bit.
+   */
+  void mark_register( const size_t tid );
 
   //! First thread of each collocation group, followed by the number of threads; valid after
   //! configure_spike_data_buffers().
@@ -486,7 +496,8 @@ private:
   //! Deliver the window [ entry.done_below, hi ) of one entry and advance the entry.
   void deliver_deferred_window_( const size_t tid, DeferredEntry_& entry, const long hi );
 
-  //! Copies the buffers of the groups into the send buffer like collocate_spike_data_buffers_() does for the registers.
+  //! Copies the buffers of the groups into the send buffer like collocate_spike_data_buffers_() does for the registers;
+  //! requests their cache lines in two batches (headers, then data) before the copy.
   template < typename SpikeDataT >
   void concatenate_group_buffers_( SendBufferPosition& send_buffer_position,
     std::vector< SpikeDataT >& send_buffer,
@@ -575,10 +586,34 @@ private:
   //! Number of groups of threads that collocate the spike registers in parallel (1: master thread alone).
   size_t collocation_groups_;
 
+  /**
+   * One word of the occupancy bitmap of a collocation group, on a cache line of its own.
+   *
+   * One bit per thread rather than one flag per thread: the collocating thread reads one cache line per 64 threads
+   * instead of one per thread. The threads set their bits when they finish their update, so the atomic updates of the
+   * shared line are spread over the arrival times of the threads.
+   */
+  struct alignas( 64 ) OccupancyWord_
+  {
+    static constexpr size_t NUM_BITS = 64;
+    std::atomic< uint64_t > bits_ = 0;
+  };
+
   //! Buffers of one group of threads for the collocation of the spike registers (see use_group_collocation()).
   struct CollocationGroup_
   {
     size_t first_thread_ = 0;  //!< first thread of the group; the group ends where the next one begins
+    /**
+     * Occupancy bitmap of the spike registers of the group in the current cycle.
+     *
+     * Bit i of word w is set if the register of thread first_thread_ + 64 * w + i holds spikes. The threads of the
+     * group set their bits before they arrive at the barrier, the collocating thread reads and clears them after the
+     * arrival of the group; the barrier orders both. A thread marks again only after the barrier that follows the
+     * collocation of all groups (the single barrier, or the second of two barriers).
+     */
+    std::unique_ptr< OccupancyWord_[] > occupancy_;
+    //! Threads with marked registers in thread order, written and read only by the collocating thread
+    std::vector< size_t > marked_;
     //! [ target rank ] spikes of the last cycle, read by the delivery or the MPI exchange
     std::vector< std::vector< SpikeData > > spikes_;
     //! [ target rank ] spikes collected in the current cycle; swapped with spikes_ in gather_spike_data()
