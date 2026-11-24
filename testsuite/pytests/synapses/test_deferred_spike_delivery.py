@@ -144,7 +144,10 @@ def test_identical_to_regular_delivery(threads, min_delay_steps):
     assert len(ref["senders"]) > 100, "network must spike"
     assert ref["deferring_threads"] == 0
     res = build_and_run(True, threads=threads, min_delay_steps=min_delay_steps)
-    assert res["deferring_threads"] > 0, "the test must exercise the deferral"
+    if threads == 1:
+        assert res["deferring_threads"] == 0, "thread 0 does not defer"
+    else:
+        assert 0 < res["deferring_threads"] < threads, "the test must exercise the deferral; thread 0 does not defer"
     assert_identical(ref, res)
 
 
@@ -185,12 +188,12 @@ def test_identical_with_poisson_input(threads, poisson_delay):
     """A generator adds spikes to the input slots during the update; deferred spikes must not change the order.
 
     With delay 1.5 ms of the generator the threads do not defer (most spikes would be visited twice); with 5 ms they
-    defer the arrival steps up to the delay of the generator.
+    defer the arrival steps up to the delay of the generator, except thread 0.
     """
     ref = build_and_run(False, threads=threads, poisson=True, poisson_delay=poisson_delay)
     assert len(ref["senders"]) > 100, "network must spike"
     res = build_and_run(True, threads=threads, poisson=True, poisson_delay=poisson_delay)
-    assert (res["deferring_threads"] > 0) == (poisson_delay > 1.5)
+    assert (res["deferring_threads"] > 0) == (poisson_delay > 1.5 and threads > 1)
     assert_identical(ref, res)
 
 
@@ -202,13 +205,14 @@ def run_order_probe(deferred):
     """
     nest.ResetKernel()
     nest.set(
-        local_num_threads=1,
+        local_num_threads=2,
         direct_spike_delivery=True,
         tree_barrier=True,
         single_cycle_barrier=True,
         deferred_spike_delivery=deferred,
     )
     target = nest.Create("iaf_psc_exp", params={"V_th": 1e30, "tau_syn_ex": 1e6})
+    assert target.vp == 1, "the target must not be on thread 0, which does not defer"
     trigger = nest.Create("spike_generator", params={"spike_times": [10.0]})
     parrots = nest.Create("parrot_neuron", 2)
     nest.Connect(trigger, parrots, syn_spec={"delay": 0.1})

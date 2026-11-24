@@ -136,7 +136,8 @@ All of them assume that every thread has a core of its own and that the threads 
    devices such as ``poisson_generator`` send to the same neurons limit how far spikes can be deferred: the longer the
    delay of these devices, the more can be deferred. A thread defers only if most of its spikes need not be delivered
    before the next update; after a simulation, ``deferred_spike_delivery_threads`` gives the number of threads that
-   deferred.
+   deferred. Thread 0, which exchanges the spikes with the other processes at the barrier, does not defer, so the
+   setting needs at least two threads per process.
 
 With bound threads, NEST forms the groups and blocks along the NUMA nodes of the threads (see below). An example for one
 process with 128 threads on a node with two sockets of 64 cores each:

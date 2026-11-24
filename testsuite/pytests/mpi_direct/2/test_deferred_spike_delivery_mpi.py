@@ -71,6 +71,6 @@ def test_identical_results(threads, poisson_delay):
     ref = build_and_run(False, threads, poisson_delay)
     res = build_and_run(True, threads, poisson_delay)
     assert ref[3] == 0
-    assert res[3] > 0, "the test must exercise the deferral"
+    assert (res[3] > 0) == (threads > 1), "the test must exercise the deferral; thread 0 does not defer"
     for a, b in zip(ref[:3], res[:3]):
         np.testing.assert_array_equal(a, b)
